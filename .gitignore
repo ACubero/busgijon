@@ -24,8 +24,10 @@ env/
 ENV/
 
 # --- Antigravity & Agent Ops (Protocolo v2.6) ---
+.agent/
+.claude/
+skill_sync.py
 # Logs generados por la mitigación de "Terminal Blindness"
-.agent/logs/
 *.log
 # Archivos de memoria temporal o scratchpads
 temp_*.txt
