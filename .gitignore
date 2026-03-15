@@ -1,0 +1,62 @@
+# --- Python Standard ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# --- Distribution & Build ---
+build/
+dist/
+*.egg-info/
+develop-eggs/
+eggs/
+lib64/
+lib/
+sdist/
+var/
+
+# --- Virtual Environments (VITAL) ---
+# Evita que el agente indexe miles de archivos de librerías
+.venv/
+venv/
+env/
+ENV/
+
+# --- Antigravity & Agent Ops (Protocolo v2.6) ---
+# Logs generados por la mitigación de "Terminal Blindness"
+.agent/logs/
+*.log
+# Archivos de memoria temporal o scratchpads
+temp_*.txt
+output_log.txt
+
+# --- Security & Secrets ---
+.env
+.env.local
+.env.*.local
+# Mantén .env.example para referencia del agente
+!.env.example
+# Script de pruebas con credenciales hardcodeadas
+webapp/probe_api.js
+# Assets APK Android — solo referencia local
+samples/
+# Notas internas
+mejoras_01.md
+
+# --- Testing & Quality ---
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Editor / IDE ---
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
