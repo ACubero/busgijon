@@ -2,7 +2,7 @@
 
 PWA de llegadas de autobús en tiempo real para la red EMTUSA (Gijón, Asturias).
 
-![UI general](screenshots/ui_general.png)
+![Bus Gijón](screenshots/README.png)
 
 ## Funcionalidades
 
@@ -16,11 +16,6 @@ PWA de llegadas de autobús en tiempo real para la red EMTUSA (Gijón, Asturias)
 - **PWA instalable** — funciona como app nativa en móvil y escritorio
 - **Accesible** — slider de tamaño de fuente (16–22px), alto contraste exterior
 
-## Screenshots
-
-| Tarjetas de llegada | Tema oscuro | Asistente IA |
-|---|---|---|
-| ![Tarjetas](screenshots/tarjeta_paradas_07.png) | ![Oscuro](screenshots/tema_oscuro.png) | ![IA](screenshots/IA_respuesta_01.png) |
 
 ## Stack
 
