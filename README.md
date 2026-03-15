@@ -23,7 +23,7 @@ PWA de llegadas de autobús en tiempo real para la red EMTUSA (Gijón, Asturias)
 |------|-----------|
 | Frontend | Vanilla JS (ES modules), Vite 7 |
 | Mapa | Leaflet 1.9 |
-| API | EMTUSA REST + OAuth2 (`emtusasiri.pub.gijon.es`) |
+| API | EMTUSA REST + OAuth2 |
 | PWA | Service Worker, Web App Manifest |
 | IA | Anthropic / OpenAI / Deepseek / Gemini (configurable) |
 
