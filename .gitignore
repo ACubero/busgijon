@@ -47,6 +47,7 @@ webapp/probe_api.js
 samples/
 # Notas internas
 mejoras_01.md
+docs/
 
 # --- Testing & Quality ---
 .coverage
@@ -64,3 +65,8 @@ htmlcov/
 .idea/
 *.swp
 .DS_Store
+# Local Pi runtime state
+.atl/
+# Tooling artifacts
+.codegraph/
+*.stackdump

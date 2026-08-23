@@ -28,12 +28,14 @@ import {
 } from "./map.js";
 import {
   renderArrivals,
+  groupArrivals,
   showLoading,
   updateRefreshBadge,
   showFilterChip,
   clearFilterChip,
   renderTransferResults,
   renderTransferDashboard,
+  setTimeColorThresholds,
 } from "./ui.js";
 
 // ============================================
@@ -55,6 +57,8 @@ const state = {
   searchQuery: "",
   stopFilter: null,
   mapTheme: localStorage.getItem("bus_map_theme") || "dark",
+  timeColorGreen: parseInt(localStorage.getItem("bus_time_color_green") || "5"),
+  timeColorYellow: parseInt(localStorage.getItem("bus_time_color_yellow") || "10"),
 
   // Favoritos
   favorites: new Set(JSON.parse(localStorage.getItem("bus_favorites") || "[]")),
@@ -75,6 +79,9 @@ const state = {
 
 const MAX_STOPS = 25;
 const CONCURRENCY = 3;
+const RADIUS_STEPS = [150, 250, 500, 750, 1000, 1250, 1500, 1750, 2000];
+
+setTimeColorThresholds(state.timeColorGreen, state.timeColorYellow);
 
 // ============================================
 // Init
@@ -419,6 +426,80 @@ async function handleRefresh() {
 }
 
 // ============================================
+// Pull-to-refresh (tirar de la lista hacia abajo)
+// ============================================
+
+function setupPullToRefresh() {
+  const container = document.getElementById("arrivals-container");
+  const indicator = document.getElementById("pull-refresh-indicator");
+  const arrow = document.getElementById("pull-refresh-arrow");
+  if (!container || !indicator || !arrow) return;
+
+  const MAX_PULL = 80; // Tope visual del desplazamiento del indicador
+  const THRESHOLD = 60; // Distancia a superar para disparar el refresco
+  let startY = 0;
+  let pulling = false;
+  let currentPull = 0;
+
+  function resetIndicator() {
+    indicator.classList.add("snap-back");
+    indicator.style.height = "0px";
+    arrow.style.transform = "rotate(0deg)";
+    currentPull = 0;
+  }
+
+  container.addEventListener(
+    "touchstart",
+    (e) => {
+      if (state.isLoading || container.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      indicator.classList.remove("snap-back");
+    },
+    { passive: true },
+  );
+
+  container.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!pulling) return;
+      const delta = e.touches[0].clientY - startY;
+      // El usuario ha hecho scroll normal o ha vuelto a subir: cancelar el gesto
+      if (delta <= 0 || container.scrollTop > 0) {
+        pulling = false;
+        resetIndicator();
+        return;
+      }
+      e.preventDefault();
+      // Resistencia con raíz cuadrada: cuanto más se tira, menos avanza
+      currentPull = Math.min(MAX_PULL, Math.sqrt(delta * MAX_PULL));
+      indicator.style.height = `${currentPull}px`;
+      arrow.style.transform = `rotate(${Math.min(180, (currentPull / THRESHOLD) * 180)}deg)`;
+    },
+    { passive: false },
+  );
+
+  function endPull() {
+    if (!pulling) return;
+    pulling = false;
+    indicator.classList.add("snap-back");
+    if (currentPull >= THRESHOLD && !state.isLoading) {
+      indicator.classList.add("loading");
+      indicator.style.height = `${THRESHOLD}px`;
+      handleRefresh().finally(() => {
+        indicator.classList.remove("loading");
+        resetIndicator();
+      });
+    } else {
+      resetIndicator();
+    }
+  }
+
+  container.addEventListener("touchend", endPull);
+  container.addEventListener("touchcancel", endPull);
+}
+
+// ============================================
 // Búsqueda / filtro
 // ============================================
 
@@ -499,7 +580,7 @@ function sortAndRender() {
       break;
   }
 
-  renderArrivals(sorted, handleRowClick, {
+  renderArrivals(groupArrivals(sorted), handleRowClick, {
     favorites: state.favorites,
     onToggleFav: toggleFavorite,
   });
@@ -575,6 +656,7 @@ function setupEvents() {
   setupTransferUI();
   setupScheduleUI();
   setupAIUI();
+  setupPullToRefresh();
 
   window.addEventListener("resize", () => {
     invalidateMapSize();
@@ -637,6 +719,12 @@ function setupSettings() {
     });
   }
 
+  // Colores del tiempo restante
+  const timeColorGreen = document.getElementById("time-color-green");
+  const timeColorYellow = document.getElementById("time-color-yellow");
+  timeColorGreen.value = String(state.timeColorGreen);
+  timeColorYellow.value = String(state.timeColorYellow);
+
   // Inputs test location
   const testLat = document.getElementById("test-lat");
   const testLng = document.getElementById("test-lng");
@@ -654,11 +742,12 @@ function setupSettings() {
     testLng.value = "-5.6627";
   });
 
-  range.value = state.radiusMeters;
-  updateRangeLabel(state.radiusMeters, valueLabel);
+  range.value = RADIUS_STEPS.indexOf(state.radiusMeters);
+  if (range.value < 0) range.value = RADIUS_STEPS.indexOf(1000);
+  updateRangeLabel(RADIUS_STEPS[range.value], valueLabel);
 
   range.addEventListener("input", () => {
-    updateRangeLabel(parseInt(range.value), valueLabel);
+    updateRangeLabel(RADIUS_STEPS[parseInt(range.value)], valueLabel);
   });
 
   // Toggle tema mapa
@@ -689,7 +778,7 @@ function setupSettings() {
   document
     .getElementById("btn-apply-settings")
     .addEventListener("click", () => {
-      const newRadius = parseInt(range.value);
+      const newRadius = RADIUS_STEPS[parseInt(range.value)];
       state.radiusMeters = newRadius;
       localStorage.setItem("bus_radius", String(newRadius));
 
@@ -699,6 +788,16 @@ function setupSettings() {
         "--base-font-size",
         newFontSize + "px",
       );
+
+      // Colores del tiempo restante
+      let green = parseInt(timeColorGreen.value) || state.timeColorGreen;
+      let yellow = parseInt(timeColorYellow.value) || state.timeColorYellow;
+      if (green >= yellow) yellow = green + 1;
+      state.timeColorGreen = green;
+      state.timeColorYellow = yellow;
+      localStorage.setItem("bus_time_color_green", String(green));
+      localStorage.setItem("bus_time_color_yellow", String(yellow));
+      setTimeColorThresholds(green, yellow);
 
       // Test location override
       const tLat = parseFloat(document.getElementById("test-lat").value);

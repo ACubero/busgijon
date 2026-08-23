@@ -50,13 +50,65 @@ function getTextColor(hexColor) {
 }
 
 /**
- * Renderizar la lista unificada de llegadas
+ * Agrupa llegadas por línea+dirección, preservando el orden relativo
+ * (ya ordenado por tiempo/distancia) dentro de cada grupo.
  */
-export function renderArrivals(arrivals, onRowClick, opts = {}) {
+export function groupArrivals(arrivals) {
+  const map = new Map();
+  const groups = [];
+  (arrivals || []).forEach((a) => {
+    const key = `${a.lineId}|${a.direction}`;
+    let group = map.get(key);
+    if (!group) {
+      group = [];
+      map.set(key, group);
+      groups.push(group);
+    }
+    group.push(a);
+  });
+  return groups;
+}
+
+let timeColorThresholds = { green: 5, yellow: 10 };
+
+/**
+ * Configura los umbrales (en minutos) que determinan el color del tiempo
+ * restante: verde <= green, amarillo <= yellow, rojo > yellow.
+ */
+export function setTimeColorThresholds(green, yellow) {
+  timeColorThresholds = { green, yellow };
+}
+
+function timeCellFor(a) {
+  let timeClass = "t-later";
+  let timeText = "--";
+  if (a.busAtStop) {
+    timeClass = "t-now";
+    timeText = `<svg width="44" height="44" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>`;
+  } else if (a.minutes !== null && a.minutes !== undefined) {
+    timeText = String(a.minutes).padStart(2, "0");
+    if (a.minutes <= timeColorThresholds.green) timeClass = "t-now";
+    else if (a.minutes <= timeColorThresholds.yellow) timeClass = "t-soon";
+  }
+  return { timeClass, timeText };
+}
+
+function distTextFor(a) {
+  if (a.userDistance === undefined) return "";
+  return a.userDistance >= 1000
+    ? `${(a.userDistance / 1000).toFixed(1)} km`
+    : `${Math.round(a.userDistance)} m`;
+}
+
+/**
+ * Renderizar la lista unificada de llegadas, agrupada por línea+dirección.
+ * Grupos de una sola parada mantienen el marcado clásico (sin cambios visuales).
+ */
+export function renderArrivals(groups, onRowClick, opts = {}) {
   const { favorites = new Set(), onToggleFav } = opts;
   const container = document.getElementById("arrivals-container");
 
-  if (!arrivals || arrivals.length === 0) {
+  if (!groups || groups.length === 0) {
     container.innerHTML = `
       <div class="status-msg">
         <div class="status-msg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -65,36 +117,23 @@ export function renderArrivals(arrivals, onRowClick, opts = {}) {
     return;
   }
 
-  container.innerHTML = arrivals
-    .map((a, i) => {
-      const color = a.lineColor || getLineColor(a.lineId);
+  const flat = [];
+
+  container.innerHTML = groups
+    .map((group) => {
+      const first = group[0];
+      const color = first.lineColor || getLineColor(first.lineId);
       const textColor = getTextColor(color);
-      let timeClass = "t-later";
-      let timeText = "--";
-      let label = "";
 
-      if (a.busAtStop) {
-        timeClass = "t-now";
-        timeText = `<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>`;
-        label = "";
-      } else if (a.minutes !== null && a.minutes !== undefined) {
-        timeText = String(a.minutes).padStart(2, "0");
-        if (a.minutes <= 2) timeClass = "t-now";
-        else if (a.minutes <= 8) timeClass = "t-soon";
-      }
+      if (group.length === 1) {
+        const a = first;
+        const idx = flat.push(a) - 1;
+        const { timeClass, timeText } = timeCellFor(a);
+        const distText = distTextFor(a);
+        const isFav = favorites.has(a.stopId.toString());
 
-      // Distancia
-      let distText = "";
-      if (a.userDistance !== undefined) {
-        distText = a.userDistance >= 1000
-          ? `${(a.userDistance / 1000).toFixed(1)} km`
-          : `${Math.round(a.userDistance)} m`;
-      }
-
-      const isFav = favorites.has(a.stopId.toString());
-
-      return `
-        <div class="arrival-row" data-idx="${i}">
+        return `
+        <div class="arrival-row" data-idx="${idx}">
           <div class="arrival-badge" style="background:${color};color:${textColor}">L${a.lineId}</div>
           <div class="arrival-direction">${fixText(a.direction)}</div>
           <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
@@ -107,14 +146,47 @@ export function renderArrivals(arrivals, onRowClick, opts = {}) {
           </div>
           <div class="arrival-stop-name">${fixText(a.stopName)}</div>
         </div>`;
+      }
+
+      // Grupo con varias paradas para la misma línea+dirección
+      const n = group.length;
+      const items = group
+        .map((a, i) => {
+          const idx = flat.push(a) - 1;
+          const { timeClass, timeText } = timeCellFor(a);
+          const distText = distTextFor(a);
+          const isFav = favorites.has(a.stopId.toString());
+          const metaRow = 2 + i * 2;
+          const sep = i > 0 ? " arrival-group-sep" : "";
+
+          return `
+          <div class="arrival-meta-row${sep}" style="grid-row:${metaRow}" data-idx="${idx}">
+            <span class="arrival-stop-badge" style="background:${color};color:${textColor}">${a.stopId}</span>
+            ${distText ? `<span class="arrival-dist">(${distText})</span>` : ""}
+            <button class="fav-btn fav-btn-inline${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+          </div>
+          <div class="arrival-stop-name" style="grid-row:${metaRow + 1}" data-idx="${idx}">${fixText(a.stopName)}</div>
+          <div class="arrival-time-box" style="grid-row:${metaRow} / ${metaRow + 2}" data-idx="${idx}">
+            <div class="arrival-min ${timeClass}">${timeText}</div>
+          </div>`;
+        })
+        .join("");
+
+      return `
+        <div class="arrival-row" style="grid-template-rows: auto repeat(${n * 2}, auto)">
+          <div class="arrival-badge" style="background:${color};color:${textColor};grid-row:2 / ${2 + n * 2};align-self:center">L${first.lineId}</div>
+          <div class="arrival-direction">${fixText(first.direction)}</div>
+          ${items}
+        </div>`;
     })
     .join("");
 
   if (onRowClick) {
-    container.querySelectorAll(".arrival-row").forEach((row) => {
-      row.addEventListener("click", () => {
-        const idx = parseInt(row.dataset.idx);
-        if (arrivals[idx]) onRowClick(arrivals[idx]);
+    container.querySelectorAll(".arrival-row[data-idx], [data-idx]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest(".fav-btn")) return;
+        const idx = parseInt(el.dataset.idx);
+        if (flat[idx]) onRowClick(flat[idx]);
       });
     });
   }

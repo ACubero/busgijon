@@ -715,6 +715,34 @@ html.light-theme .search-input--prominent {
   border-radius: 2px;
 }
 
+/* Pull-to-refresh (tirar hacia abajo en la lista de llegadas) */
+#pull-refresh-indicator {
+  flex-shrink: 0;
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--bg-secondary);
+}
+#pull-refresh-indicator.snap-back {
+  transition: height 0.25s ease;
+}
+#pull-refresh-indicator #pull-refresh-arrow {
+  transition: transform 0.1s linear;
+}
+#pull-refresh-indicator #pull-refresh-spinner {
+  display: none;
+}
+#pull-refresh-indicator.loading #pull-refresh-arrow {
+  display: none;
+}
+#pull-refresh-indicator.loading #pull-refresh-spinner {
+  display: block;
+  animation: spin 0.8s linear infinite;
+}
+
 /* Arrival Row */
 .arrival-row {
   display: grid;
@@ -773,6 +801,11 @@ html.light-theme .search-input--prominent {
   gap: 6px;
   align-self: center;
 }
+.arrival-group-sep {
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 6px;
+  margin-top: 4px;
+}
 .arrival-stop-badge {
   flex-shrink: 0;
   font-size: 21px;
@@ -819,7 +852,7 @@ html.light-theme .search-input--prominent {
   color: var(--warning);
 }
 .arrival-min.t-later {
-  color: var(--text-secondary);
+  color: var(--danger);
 }
 .arrival-label {
   font-size: 0.625rem;
@@ -850,6 +883,10 @@ html.light-theme .search-input--prominent {
 }
 .fav-btn.active {
   color: var(--accent);
+}
+.fav-btn-inline {
+  margin-left: auto;
+  padding: 2px;
 }
 .fav-btn.active svg path,
 .btn-icon.fav-filter-btn.active svg path {
