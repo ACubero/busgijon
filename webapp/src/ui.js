@@ -105,7 +105,7 @@ function distTextFor(a) {
  * Grupos de una sola parada mantienen el marcado clásico (sin cambios visuales).
  */
 export function renderArrivals(groups, onRowClick, opts = {}) {
-  const { favorites = new Set(), onToggleFav } = opts;
+  const { favorites = new Set(), onToggleFav, onCreateAlert } = opts;
   const container = document.getElementById("arrivals-container");
 
   if (!groups || groups.length === 0) {
@@ -137,6 +137,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
           <div class="arrival-badge" style="background:${color};color:${textColor}">L${a.lineId}</div>
           <div class="arrival-direction">${fixText(a.direction)}</div>
           <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+          <button class="alert-btn" data-idx="${idx}" aria-label="Crear alerta"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           <div class="arrival-time-box">
             <div class="arrival-min ${timeClass}">${timeText}</div>
           </div>
@@ -196,6 +197,16 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         onToggleFav(btn.dataset.stopId);
+      });
+    });
+  }
+
+  if (onCreateAlert) {
+    container.querySelectorAll(".alert-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx);
+        if (flat[idx]) onCreateAlert(flat[idx]);
       });
     });
   }
@@ -416,4 +427,110 @@ export function renderTransferDashboard(arrivals1, arrivals2, config, onExit) {
   document
     .getElementById("btn-exit-transfer")
     .addEventListener("click", onExit);
+}
+
+// ============================================
+// Alertas — Diálogo de creación y lista de alertas
+// ============================================
+
+/**
+ * Mostrar un diálogo modal para crear una alerta de bus.
+ * Pre-rellena con los datos de la llegada seleccionada.
+ *
+ * @param {Object} arrival - Datos de la llegada { lineId, lineName, direction, stopId, stopName }
+ * @param {Function} onConfirm - Callback(thresholdMinutes) cuando se confirma
+ */
+export function showAlertDialog(arrival, onConfirm) {
+  // Remove any existing dialog
+  document.getElementById("alert-dialog")?.remove();
+
+  const dialog = document.createElement("div");
+  dialog.id = "alert-dialog";
+  dialog.className = "alert-dialog-overlay";
+
+  const color = arrival.lineColor || getLineColor(arrival.lineId);
+  const textColor = getTextColor(color);
+
+  dialog.innerHTML = `
+    <div class="alert-dialog-content">
+      <div class="alert-dialog-header">
+        <span class="arrival-badge" style="background:${color};color:${textColor}">L${arrival.lineId}</span>
+        <span class="alert-dialog-direction">${fixText(arrival.direction)}</span>
+        <button class="alert-dialog-close" aria-label="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="alert-dialog-body">
+        <p class="alert-dialog-stop">Parada: <strong>${fixText(arrival.stopName)}</strong> (#${arrival.stopId})</p>
+        <label class="settings-label">Avisarme cuando el bus esté a</label>
+        <div class="alert-threshold-row">
+          <input type="range" id="alert-threshold" class="settings-range" min="1" max="30" step="1" value="5" />
+          <span id="alert-threshold-value" class="settings-range-value">5 min</span>
+        </div>
+        <p class="alert-dialog-hint">Recibirás una notificación push una sola vez cuando el bus esté a este número de minutos o menos.</p>
+      </div>
+      <button id="btn-confirm-alert" class="settings-apply">Crear alerta</button>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  // Wire up interactions
+  const thresholdInput = dialog.querySelector("#alert-threshold");
+  const thresholdValue = dialog.querySelector("#alert-threshold-value");
+
+  thresholdInput.addEventListener("input", () => {
+    thresholdValue.textContent = `${thresholdInput.value} min`;
+  });
+
+  dialog.querySelector(".alert-dialog-close").addEventListener("click", () => {
+    dialog.remove();
+  });
+
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.remove();
+  });
+
+  dialog.querySelector("#btn-confirm-alert").addEventListener("click", () => {
+    const threshold = parseInt(thresholdInput.value);
+    dialog.remove();
+    onConfirm(threshold);
+  });
+}
+
+/**
+ * Renderizar la lista de alertas activas en la página de ajustes.
+ *
+ * @param {Array} alerts - Lista de alertas [{ id, lineId, direction, stopName, stopId, thresholdMinutes, status }]
+ * @param {Function} onDelete - Callback(alertId) para eliminar
+ */
+export function renderAlertsList(alerts, onDelete) {
+  const container = document.getElementById("alerts-list");
+  if (!container) return;
+
+  if (!alerts || alerts.length === 0) {
+    container.innerHTML = '<p class="alerts-empty">No tienes alertas activas.</p>';
+    return;
+  }
+
+  container.innerHTML = alerts
+    .map((alert) => {
+      const color = getLineColor(alert.lineId);
+      const textColor = getTextColor(color);
+      return `
+      <div class="alert-item" data-alert-id="${alert.id}">
+        <span class="arrival-badge" style="background:${color};color:${textColor}">L${alert.lineId}</span>
+        <div class="alert-item-info">
+          <div class="alert-item-direction">${fixText(alert.direction)}</div>
+          <div class="alert-item-stop">${fixText(alert.stopName)} (#${alert.stopId})</div>
+        </div>
+        <div class="alert-item-threshold">${alert.thresholdMinutes} min</div>
+        <button class="alert-item-delete" data-alert-id="${alert.id}" aria-label="Eliminar alerta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>`;
+    })
+    .join("");
+
+  container.querySelectorAll(".alert-item-delete").forEach((btn) => {
+    btn.addEventListener("click", () => onDelete(parseInt(btn.dataset.alertId)));
+  });
 }

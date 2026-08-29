@@ -11,6 +11,7 @@
       content="Consulta en tiempo real los próximos autobuses cerca de ti en Gijón (EMTUSA)"
     />
     <meta name="theme-color" content="#0f172a" />
+    <link rel="manifest" href="./manifest.json" />
     <title>Bus Gijón — Próximos autobuses cerca de ti</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -247,6 +248,28 @@
           <button id="btn-apply-settings" class="settings-apply" style="margin-top: 24px">
             Aplicar y recargar
           </button>
+        </div>
+      </div>
+
+      <!-- Alerts section in settings -->
+      <div id="alerts-page" class="page-view">
+        <div class="settings-header">
+          <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Alertas</h2>
+        </div>
+        <div class="settings-body">
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+              Activa las notificaciones push para recibir avisos cuando tu bus se acerque a la parada.
+            </p>
+            <button id="btn-notif-perm" class="settings-apply">
+              Activar notificaciones
+            </button>
+          </div>
+
+          <label class="settings-label" style="margin-top: 16px">Alertas activas</label>
+          <div id="alerts-list" class="alerts-list-container">
+            <p class="alerts-empty">Cargando alertas...</p>
+          </div>
         </div>
       </div>
 
@@ -682,13 +705,21 @@
           </svg>
           <span>Ajustes</span>
         </button>
+        <button class="nav-btn" data-view="alerts" id="btn-alerts">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span>Alertas</span>
+        </button>
       </nav>
     </div>
 
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
+          navigator.serviceWorker.register('./sw.js', { scope: './' })
+            .then(reg => console.log('[SW] Registered with scope:', reg.scope))
             .catch(err => console.warn('[SW] Registro fallido:', err));
         });
       }

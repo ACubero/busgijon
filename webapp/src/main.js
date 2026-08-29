@@ -36,7 +36,18 @@ import {
   renderTransferResults,
   renderTransferDashboard,
   setTimeColorThresholds,
+  showAlertDialog,
+  renderAlertsList,
 } from "./ui.js";
+
+import {
+  requestNotificationPermission,
+  subscribeToPush,
+  createAlert,
+  deleteAlert,
+  getActiveAlerts,
+  getCachedSubscriptionId,
+} from "./alert.js";
 
 // ============================================
 // Estado
@@ -583,6 +594,7 @@ function sortAndRender() {
   renderArrivals(groupArrivals(sorted), handleRowClick, {
     favorites: state.favorites,
     onToggleFav: toggleFavorite,
+    onCreateAlert: handleCreateAlert,
   });
 }
 
@@ -595,6 +607,63 @@ function setupViewToggle() {
     btn.addEventListener("click", () => switchToView(btn.dataset.view));
   });
   switchToView("list");
+}
+
+// ============================================
+// Alertas — Handlers
+// ============================================
+
+async function handleCreateAlert(arrival) {
+  // Show the alert dialog with pre-filled arrival data
+  showAlertDialog(arrival, async (thresholdMinutes) => {
+    // Request notification permission first
+    const permission = await requestNotificationPermission();
+    if (permission !== "granted") {
+      console.warn("[Alert] Notification permission not granted");
+      alert("Necesitas permitir notificaciones para recibir alertas de buses.");
+      return;
+    }
+
+    // Create the alert via backend
+    const result = await createAlert({
+      lineId: arrival.lineId,
+      lineName: arrival.lineName,
+      direction: arrival.direction,
+      stopId: String(arrival.stopId),
+      stopName: arrival.stopName,
+      thresholdMinutes,
+    });
+
+    if (result) {
+      console.log("[Alert] Alert created:", result);
+      // Show a brief confirmation
+      const toast = document.createElement("div");
+      toast.className = "alert-toast";
+      toast.textContent = `✓ Alerta creada: L${arrival.lineId} a ${thresholdMinutes} min`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+
+      // Refresh alert list in settings
+      loadAlertsList();
+    } else {
+      alert("No se pudo crear la alerta. Verifica que el backend esté funcionando.");
+    }
+  });
+}
+
+async function handleDeleteAlert(alertId) {
+  const success = await deleteAlert(alertId);
+  if (success) {
+    loadAlertsList();
+  } else {
+    alert("No se pudo eliminar la alerta.");
+  }
+}
+
+async function loadAlertsList() {
+  const subId = getCachedSubscriptionId();
+  const alerts = await getActiveAlerts(subId);
+  renderAlertsList(alerts, handleDeleteAlert);
 }
 
 // ============================================
@@ -657,6 +726,7 @@ function setupEvents() {
   setupScheduleUI();
   setupAIUI();
   setupPullToRefresh();
+  setupAlertsUI();
 
   window.addEventListener("resize", () => {
     invalidateMapSize();
@@ -1165,6 +1235,42 @@ function setupAIUI() {
     saveAIBtn.textContent = '✓ Guardado';
     setTimeout(() => { saveAIBtn.textContent = 'Guardar configuración IA'; }, 2000);
   });
+}
+
+// ============================================
+// Alertas — UI Setup
+// ============================================
+
+function setupAlertsUI() {
+  // Notification permission button
+  const btnNotifPerm = document.getElementById("btn-notif-perm");
+  if (btnNotifPerm) {
+    btnNotifPerm.addEventListener("click", async () => {
+      const perm = await requestNotificationPermission();
+      if (perm === "granted") {
+        // Also subscribe to push
+        const sub = await subscribeToPush();
+        if (sub) {
+          btnNotifPerm.textContent = "✓ Notificaciones activadas";
+          btnNotifPerm.disabled = true;
+          loadAlertsList();
+        } else {
+          alert("No se pudo suscribir a las notificaciones push.");
+        }
+      } else {
+        alert("Permiso de notificaciones denegado.");
+      }
+    });
+
+    // Update button state based on current permission
+    if ("Notification" in window && Notification.permission === "granted") {
+      btnNotifPerm.textContent = "✓ Notificaciones activadas";
+      btnNotifPerm.disabled = true;
+    }
+  }
+
+  // Load existing alerts on init (best-effort, non-blocking)
+  loadAlertsList();
 }
 
 // GO

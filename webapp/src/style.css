@@ -272,12 +272,14 @@ body {
 }
 #app[data-view="transfer"] #transfer-page,
 #app[data-view="schedule"] #schedule-page,
-#app[data-view="settings"] #settings-page {
+#app[data-view="settings"] #settings-page,
+#app[data-view="alerts"] #alerts-page {
   display: block;
 }
 #app[data-view="transfer"] #bottom-panel,
 #app[data-view="schedule"] #bottom-panel,
-#app[data-view="settings"] #bottom-panel {
+#app[data-view="settings"] #bottom-panel,
+#app[data-view="alerts"] #bottom-panel {
   display: none;
 }
 
@@ -1794,4 +1796,396 @@ html.light-theme .ai-settings-input {
 }
 #offline-banner.visible {
   transform: translateY(0);
+}
+
+/* =========================================
+   ALERTS & PUSH NOTIFICATIONS
+   ========================================= */
+
+/* Bell icon button on arrival rows — sits next to the fav button */
+.alert-btn {
+  grid-column: 3;
+  grid-row: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  line-height: 1;
+  align-self: center;
+  justify-self: center;
+  transition: color 0.15s, transform 0.15s;
+  display: flex;
+  align-items: center;
+}
+.alert-btn:hover {
+  color: var(--accent-light);
+  transform: scale(1.2);
+}
+.alert-btn.active {
+  color: var(--accent);
+}
+.alert-btn.active svg {
+  animation: bell-ring 0.5s var(--ease);
+}
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0); }
+  20%      { transform: rotate(12deg); }
+  40%      { transform: rotate(-12deg); }
+  60%      { transform: rotate(8deg); }
+  80%      { transform: rotate(-8deg); }
+}
+
+/* Alert dialog — modal overlay with centered card */
+.alert-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s var(--ease);
+}
+.alert-dialog-overlay.hidden {
+  display: none;
+}
+
+/* The dialog card — dark theme matching settings cards */
+.alert-dialog {
+  width: 90%;
+  max-width: 380px;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(230, 57, 70, 0.15);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: fadeInUp 0.3s var(--ease);
+}
+.alert-dialog-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 8px;
+}
+.alert-dialog-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.alert-dialog-header svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.alert-dialog-body {
+  padding: 20px;
+}
+.alert-dialog-info {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.alert-dialog-info strong {
+  color: var(--text-primary);
+}
+
+/* Form controls inside the dialog */
+.alert-dialog select,
+.alert-dialog input[type="range"] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.875rem;
+  font-family: inherit;
+  box-sizing: border-box;
+  appearance: none;
+}
+.alert-dialog select {
+  margin-bottom: 16px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a0a8c0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+.alert-dialog select option {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+.alert-dialog input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  padding: 0;
+  background: var(--bg-glass-light);
+  border: none;
+  border-radius: 3px;
+  outline: none;
+  margin-bottom: 4px;
+}
+.alert-dialog input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  border: 2px solid white;
+  box-shadow: 0 2px 8px var(--accent-glow);
+  cursor: pointer;
+}
+.alert-dialog input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  border: 2px solid white;
+  cursor: pointer;
+}
+.alert-dialog-threshold-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+.alert-dialog-threshold-value {
+  min-width: 60px;
+  text-align: right;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+.alert-dialog-threshold-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+/* Button row: create + cancel */
+.alert-dialog-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 20px 20px;
+}
+.alert-dialog-actions button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.alert-dialog-create {
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: white;
+}
+.alert-dialog-create:hover {
+  opacity: 0.9;
+}
+.alert-dialog-create:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.alert-dialog-cancel {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.alert-dialog-cancel:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* Toast — transient notification at bottom of screen */
+.toast {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height) + 16px);
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  z-index: 3000;
+  max-width: 90%;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 0.3s var(--ease);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toast.visible {
+  transform: translateX(-50%) translateY(0);
+}
+.toast.toast-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+.toast.toast-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.toast.toast-info {
+  border-color: var(--accent);
+}
+
+/* Alert list item — each alert card in the alerts settings page */
+.alerts-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.alerts-empty {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px 12px;
+}
+.alert-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius);
+  transition: all 0.2s var(--ease);
+  animation: slideUp 0.2s var(--ease) both;
+}
+.alert-list-item:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(230, 57, 70, 0.12);
+}
+.alert-list-item .alert-line-badge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 36px;
+  padding: 2px 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: white;
+  border-radius: 6px;
+}
+.alert-list-item .alert-info {
+  flex: 1;
+  min-width: 0;
+}
+.alert-list-item .alert-direction {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.alert-list-item .alert-stop-info {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.alert-list-item .alert-threshold {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.alert-list-item .alert-fired-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+/* Delete button inside alert list item */
+.alert-list-item .alert-delete-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.alert-list-item .alert-delete-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+.alert-list-item .alert-delete-btn:active {
+  transform: scale(0.9);
+}
+
+/* Notification permission request button */
+.notif-perm-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.notif-perm-btn:hover {
+  opacity: 0.9;
+}
+.notif-perm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.notif-perm-btn.granted {
+  background: var(--success);
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Light theme overrides for alert components */
+html.light-theme .alert-dialog {
+  background: var(--bg-secondary);
+}
+html.light-theme .alert-dialog select,
+html.light-theme .alert-dialog input[type="range"] {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+html.light-theme .alert-list-item {
+  border-color: rgba(0, 0, 0, 0.07);
+}
+html.light-theme .toast {
+  border-color: rgba(0, 0, 0, 0.1);
 }

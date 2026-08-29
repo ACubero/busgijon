@@ -7,7 +7,7 @@
  *   - Auth (login)      → Sin caché
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE  = `busgijon-static-${CACHE_VERSION}`;
 const API_CACHE     = `busgijon-api-${CACHE_VERSION}`;
 
@@ -111,3 +111,58 @@ async function networkFirst(request, cacheName) {
     throw new Error(`[SW] Sin conexión y sin caché para: ${request.url}`);
   }
 }
+
+// ── Push: mostrar notificación al recibir un evento push del backend
+// El payload JSON incluye: title, body, tag, data (url a abrir al click)
+const NOTIF_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e63946' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='18' height='14' rx='2'/><path d='M3 9h18M3 13h18'/><circle cx='8' cy='20' r='1.5'/><circle cx='16' cy='20' r='1.5'/><path d='M8 17v-.5M16 17v-.5'/></svg>";
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    // Si el payload no es JSON válido, usar texto plano como body
+    payload = { body: event.data ? event.data.text() : 'Nueva alerta de bus' };
+  }
+
+  const title = payload.title || 'Bus Gijón — Alerta';
+  const options = {
+    body: payload.body || 'Tu bus se acerca a la parada',
+    icon: NOTIF_ICON,
+    badge: NOTIF_ICON,
+    tag: payload.tag || 'busgijon-alert',
+    data: payload.data || { url: '/apps/busgijon/' },
+    requireInteraction: false,
+    renotify: true,
+    vibrate: [200, 100, 200],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// ── Notification click: cerrar notificación y abrir/enfocar la app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = (event.notification.data && event.notification.data.url)
+    ? event.notification.data.url
+    : '/apps/busgijon/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Si ya hay una pestaña abierta de la app, enfocarla
+        for (const client of clientList) {
+          if (client.url.includes('/apps/busgijon/') && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Si no hay pestaña abierta, abrir una nueva
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});
