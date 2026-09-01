@@ -1496,10 +1496,10 @@ function setupStopsSelector() {
  *   - Si no hay selección Y hay `state.userLocation` → propone la más cercana.
  *   - Si no hay selección ni geo → deja el selector vacío (placeholder en info).
  *
- * El flag `state.stops.boostrapped` evita repetir el trabajo en cada entrada.
+ * El flag `state.stops.bootstrapped` evita repetir el trabajo en cada entrada.
  */
 function ensureStopsSelectorBootstrapped() {
-  if (state.stops.boostrapped) {
+  if (state.stops.bootstrapped) {
     // Aunque ya esté bootstrapped, refrescar el info en caso de que se haya
     // cambiado la selección por otra vía.
     updateStopsStopInfo(
@@ -1508,7 +1508,7 @@ function ensureStopsSelectorBootstrapped() {
     );
     return;
   }
-  state.stops.boostrapped = true;
+  state.stops.bootstrapped = true;
 
   if (state.stops.selectedStopId) {
     // Ya había selección persistida: refrescar nombre si el catálogo lo permite.
