@@ -1828,6 +1828,22 @@ html.light-theme .ai-settings-input {
 .alert-btn.active svg {
   animation: bell-ring 0.5s var(--ease);
 }
+.alert-btn-inline {
+  margin-left: 2px;
+  padding: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  transition: all 0.2s var(--ease);
+}
+.alert-btn-inline:hover {
+  color: var(--accent-light);
+  transform: scale(1.2);
+}
 @keyframes bell-ring {
   0%, 100% { transform: rotate(0); }
   20%      { transform: rotate(12deg); }
@@ -2045,7 +2061,7 @@ html.light-theme .ai-settings-input {
   border-color: var(--accent);
 }
 
-/* Alert list item — each alert card in the alerts settings page */
+/* Alert list container — lista de tarjetas de alertas activas */
 .alerts-list-container {
   display: flex;
   flex-direction: column;
@@ -2058,94 +2074,153 @@ html.light-theme .ai-settings-input {
   text-align: center;
   padding: 24px 12px;
 }
-.alert-list-item {
-  display: flex;
+
+/* Alert list item — rediseño coherente con .arrival-row.
+   Estructura: [badge línea | info (destino + parada) | umbral min | botón borrar] */
+.alert-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 14px;
   background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   transition: all 0.2s var(--ease);
   animation: slideUp 0.2s var(--ease) both;
 }
-.alert-list-item:hover {
+.alert-item:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(230, 57, 70, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
+  border-left-color: var(--accent);
 }
-.alert-list-item .alert-line-badge {
-  flex-shrink: 0;
+
+/* Badge cuadrado grande de la línea, mismo lenguaje que .arrival-badge */
+.alert-item-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
-  height: 36px;
-  padding: 2px 8px;
-  font-size: 16px;
+  min-width: 52px;
+  height: 44px;
+  padding: 4px 10px;
+  font-size: 17px;
   font-weight: 800;
-  color: white;
-  border-radius: 6px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
 }
-.alert-list-item .alert-info {
-  flex: 1;
+
+/* Bloque central: destino arriba, parada abajo con id como pill de color */
+.alert-item-info {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.alert-list-item .alert-direction {
-  font-size: 0.875rem;
-  font-weight: 600;
+.alert-item-direction {
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
-.alert-list-item .alert-stop-info {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.alert-item-stop {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  min-width: 0;
 }
-.alert-list-item .alert-threshold {
-  font-size: 0.75rem;
+.alert-item-stop-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 0.7rem;
   font-weight: 700;
-  color: var(--accent);
+  border-radius: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  flex-shrink: 0;
+}
+.alert-item-stop-name {
   white-space: nowrap;
-  flex-shrink: 0;
-}
-.alert-list-item .alert-fired-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(52, 211, 153, 0.15);
-  color: var(--success);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-/* Delete button inside alert list item */
-.alert-list-item .alert-delete-btn {
+/* Umbral: número grande + "min" pequeño, alineado a la derecha */
+.alert-item-threshold {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: rgba(230, 57, 70, 0.1);
+  border-radius: var(--radius-sm);
+  min-width: 48px;
+}
+.alert-item-threshold-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.alert-item-threshold-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Botón eliminar discreto, se intensifica en hover */
+.alert-item-delete {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s var(--ease);
 }
-.alert-list-item .alert-delete-btn:hover {
-  background: rgba(248, 113, 113, 0.12);
+.alert-item-delete:hover {
+  background: rgba(248, 113, 113, 0.14);
   color: var(--danger);
 }
-.alert-list-item .alert-delete-btn:active {
-  transform: scale(0.9);
+.alert-item-delete:active {
+  transform: scale(0.92);
+}
+
+/* Responsive: en pantallas estrechas el umbral baja a una segunda fila */
+@media (max-width: 380px) {
+  .alert-item {
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .alert-item-threshold {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    justify-self: start;
+    flex-direction: row;
+    gap: 4px;
+    padding: 4px 8px;
+  }
+  .alert-item-threshold-label {
+    margin-top: 0;
+  }
 }
 
 /* Notification permission request button */
@@ -2183,8 +2258,9 @@ html.light-theme .alert-dialog select,
 html.light-theme .alert-dialog input[type="range"] {
   border-color: rgba(0, 0, 0, 0.15);
 }
-html.light-theme .alert-list-item {
+html.light-theme .alert-item {
   border-color: rgba(0, 0, 0, 0.07);
+  border-left-color: var(--accent);
 }
 html.light-theme .toast {
   border-color: rgba(0, 0, 0, 0.1);

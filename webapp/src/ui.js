@@ -165,6 +165,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
             <span class="arrival-stop-badge" style="background:${color};color:${textColor}">${a.stopId}</span>
             ${distText ? `<span class="arrival-dist">(${distText})</span>` : ""}
             <button class="fav-btn fav-btn-inline${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+            <button class="alert-btn alert-btn-inline" data-idx="${idx}" aria-label="Crear alerta"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           </div>
           <div class="arrival-stop-name" style="grid-row:${metaRow + 1}" data-idx="${idx}">${fixText(a.stopName)}</div>
           <div class="arrival-time-box" style="grid-row:${metaRow} / ${metaRow + 2}" data-idx="${idx}">
@@ -517,20 +518,29 @@ export function renderAlertsList(alerts, onDelete) {
       const textColor = getTextColor(color);
       return `
       <div class="alert-item" data-alert-id="${alert.id}">
-        <span class="arrival-badge" style="background:${color};color:${textColor}">L${alert.lineId}</span>
+        <div class="alert-item-badge" style="background:${color};color:${textColor}">L${alert.lineId}</div>
         <div class="alert-item-info">
           <div class="alert-item-direction">${fixText(alert.direction)}</div>
-          <div class="alert-item-stop">${fixText(alert.stopName)} (#${alert.stopId})</div>
+          <div class="alert-item-stop">
+            <span class="alert-item-stop-id" style="background:${color};color:${textColor}">${alert.stopId}</span>
+            <span class="alert-item-stop-name">${fixText(alert.stopName)}</span>
+          </div>
         </div>
-        <div class="alert-item-threshold">${alert.thresholdMinutes} min</div>
+        <div class="alert-item-threshold">
+          <div class="alert-item-threshold-value">${alert.thresholdMinutes}</div>
+          <div class="alert-item-threshold-label">min</div>
+        </div>
         <button class="alert-item-delete" data-alert-id="${alert.id}" aria-label="Eliminar alerta">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>`;
     })
     .join("");
 
   container.querySelectorAll(".alert-item-delete").forEach((btn) => {
-    btn.addEventListener("click", () => onDelete(parseInt(btn.dataset.alertId)));
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onDelete(parseInt(btn.dataset.alertId));
+    });
   });
 }
