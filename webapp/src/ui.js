@@ -545,3 +545,190 @@ export function renderAlertsList(alerts, onDelete) {
     });
   });
 }
+
+// ============================================
+// Vista Paradas — Cabecera con selector de parada (T4)
+// ============================================
+
+/**
+ * Renderizar la cabecera del selector de parada dentro de `#stops-header`.
+ *
+ * Estructura:
+ *   - Etiqueta visible "Parada" (sin icono lupa, igual que la search bar de Llegadas
+ *     según la regla de CLAUDE.md).
+ *   - Input con placeholder "Busca por nombre o número…".
+ *   - Botón "Usar mi ubicación" (mismo icono SVG de chincheta que ya usa el código
+ *     para geolocalización, reutilizando el patrón del marker-pin).
+ *   - Bloque `#stops-stop-info` para mostrar el nombre y número de la parada
+ *     seleccionada cuando exista.
+ *   - Lista `#stops-suggestions` (oculta por defecto) donde se pintan hasta 8
+ *     sugerencias al teclear.
+ *
+ * Esta función NO cablea los listeners: lo hace `setupStopsSelector` en main.js,
+ * para mantener el patrón del proyecto (estado único en main.js, ui.js sólo pinta).
+ *
+ * @param {string|null} selectedName - Nombre de la parada seleccionada (o null)
+ * @param {string|null} selectedId   - ID de la parada seleccionada (o null)
+ */
+export function renderStopsHeader(selectedName, selectedId) {
+  const container = document.getElementById("stops-header");
+  if (!container) return;
+
+  const value = selectedName ? `${selectedName}${selectedId ? ` (#${selectedId})` : ""}` : "";
+
+  container.innerHTML = `
+    <div class="stops-header-row">
+      <label class="stops-header-label" for="stops-stop-input">Parada</label>
+    </div>
+    <div class="stops-header-controls">
+      <div class="stops-input-wrap">
+        <input
+          type="text"
+          id="stops-stop-input"
+          class="search-input search-input--prominent stops-stop-input"
+          placeholder="Busca por nombre o número…"
+          autocomplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-controls="stops-suggestions"
+          value="${escapeAttr(value)}"
+        />
+        <button
+          id="stops-stop-clear"
+          type="button"
+          class="search-clear"
+          aria-label="Limpiar selección"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <button
+        id="stops-geo-btn"
+        type="button"
+        class="stops-geo-btn"
+        aria-label="Usar mi ubicación"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+        <span>Usar mi ubicación</span>
+      </button>
+    </div>
+    <div id="stops-stop-info" class="stops-stop-info"></div>
+    <div
+      id="stops-suggestions"
+      class="stops-suggestions hidden"
+      role="listbox"
+      aria-label="Resultados de búsqueda de paradas"
+    ></div>
+  `;
+
+  // Estado inicial del info (placeholder si no hay selección).
+  updateStopsStopInfo(selectedName, selectedId);
+}
+
+/**
+ * Actualiza el texto bajo el input con el nombre+número de la parada
+ * seleccionada, o un mensaje informativo cuando no hay selección.
+ */
+export function updateStopsStopInfo(selectedName, selectedId, transientMsg) {
+  const el = document.getElementById("stops-stop-info");
+  if (!el) return;
+  if (transientMsg) {
+    el.textContent = transientMsg;
+    el.dataset.mode = "msg";
+    return;
+  }
+  if (selectedName && selectedId != null) {
+    el.textContent = `Parada #${selectedId} — ${fixText(selectedName)}`;
+    el.dataset.mode = "selected";
+  } else if (selectedName) {
+    el.textContent = `Parada — ${fixText(selectedName)}`;
+    el.dataset.mode = "selected";
+  } else {
+    el.textContent = "Selecciona una parada para ver los próximos buses.";
+    el.dataset.mode = "empty";
+  }
+}
+
+/**
+ * Renderizar la lista de sugerencias de paradas debajo del input.
+ *
+ * @param {Array<{idparada:string,descripcion:string}>} stops
+ * @param {(stop)=>void} onPick - Callback al pulsar una sugerencia
+ */
+export function renderStopsSuggestions(stops, onPick) {
+  const list = document.getElementById("stops-suggestions");
+  const input = document.getElementById("stops-stop-input");
+  if (!list) return;
+
+  if (!stops || stops.length === 0) {
+    list.classList.add("hidden");
+    list.innerHTML = "";
+    if (input) input.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  list.innerHTML = stops
+    .map(
+      (s) => `
+      <div class="stops-suggestion-item" role="option" data-stop-id="${escapeAttr(String(s.idparada))}">
+        <span class="stops-suggestion-id">${escapeHtml(String(s.idparada))}</span>
+        <span class="stops-suggestion-name">${escapeHtml(fixText(s.descripcion) || "")}</span>
+      </div>`,
+    )
+    .join("");
+
+  list.classList.remove("hidden");
+  if (input) input.setAttribute("aria-expanded", "true");
+
+  list.querySelectorAll(".stops-suggestion-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.stopId;
+      const stop = stops.find((s) => String(s.idparada) === id);
+      if (stop) onPick(stop);
+    });
+  });
+}
+
+/** Ocultar la lista de sugerencias (sin perder la selección actual). */
+export function hideStopsSuggestions() {
+  const list = document.getElementById("stops-suggestions");
+  const input = document.getElementById("stops-stop-input");
+  if (list) {
+    list.classList.add("hidden");
+    list.innerHTML = "";
+  }
+  if (input) input.setAttribute("aria-expanded", "false");
+}
+
+/**
+ * Mostrar mensaje breve en #stops-stop-info (ej. "Sin ubicación") y
+ * devolverlo a su estado natural tras `durationMs`.
+ */
+export function flashStopsStopInfo(msg, durationMs = 3000) {
+  const el = document.getElementById("stops-stop-info");
+  if (!el) return;
+  const previous = { text: el.textContent, mode: el.dataset.mode };
+  updateStopsStopInfo(null, null, msg);
+  setTimeout(() => {
+    // Sólo restaurar si nadie cambió el modo mientras tanto
+    if (el.dataset.mode === "msg") {
+      el.textContent = previous.text;
+      el.dataset.mode = previous.mode || "empty";
+    }
+  }, durationMs);
+}
+
+// --- Helpers locales de escapado HTML (la cabecera se inyecta con innerHTML) ---
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttr(str) {
+  return escapeHtml(str);
+}

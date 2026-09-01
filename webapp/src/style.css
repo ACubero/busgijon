@@ -596,6 +596,156 @@ html.light-theme .search-input--prominent {
 .settings-body {
   padding: 20px;
 }
+
+/* ── Vista Paradas — Cabecera con selector de parada (T4) ── */
+.stops-header {
+  padding: 10px 20px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+html.light-theme .stops-header {
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+.stops-header-row {
+  margin-bottom: 6px;
+}
+.stops-header-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.stops-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.stops-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.stops-stop-input {
+  width: 100%;
+  font-size: var(--font-size-base, 16px);
+}
+.stops-input-wrap .search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.stops-geo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(230, 57, 70, 0.35);
+  background: var(--bg-card);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.stops-geo-btn:hover,
+.stops-geo-btn:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  outline: none;
+}
+.stops-geo-btn:active {
+  transform: scale(0.98);
+}
+html.light-theme .stops-geo-btn {
+  background: #fff;
+  border-color: rgba(198, 40, 50, 0.4);
+}
+.stops-stop-info {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  min-height: 1.2em; /* evita salto al cambiar contenido */
+}
+.stops-stop-info[data-mode="selected"] {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.stops-stop-info[data-mode="msg"] {
+  color: var(--warning);
+}
+
+.stops-suggestions {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  margin-top: 4px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+html.light-theme .stops-suggestions {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.stops-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: var(--font-size-base, 16px);
+  color: var(--text-primary);
+  transition: background 0.15s, color 0.15s;
+}
+html.light-theme .stops-suggestion-item {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+.stops-suggestion-item:last-child {
+  border-bottom: none;
+}
+.stops-suggestion-item:hover,
+.stops-suggestion-item:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+.stops-suggestion-item:hover .stops-suggestion-id,
+.stops-suggestion-item:focus-visible .stops-suggestion-id {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.stops-suggestion-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.stops-suggestion-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .settings-label {
   font-size: 0.8125rem;
   font-weight: 600;

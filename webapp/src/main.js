@@ -38,6 +38,11 @@ import {
   setTimeColorThresholds,
   showAlertDialog,
   renderAlertsList,
+  renderStopsHeader,
+  renderStopsSuggestions,
+  hideStopsSuggestions,
+  updateStopsStopInfo,
+  flashStopsStopInfo,
 } from "./ui.js";
 
 import {
@@ -86,6 +91,13 @@ const state = {
   transferArrivals1: [],
   transferArrivals2: [],
   allLines: [],
+
+  // Paradas (T4) — selector de parada de la vista Paradas.
+  // Persiste en localStorage bajo la clave "bus_selected_stop".
+  stops: {
+    selectedStopId: localStorage.getItem("bus_selected_stop") || null,
+    selectedStopName: "",
+  },
 };
 
 const MAX_STOPS = 25;
@@ -405,10 +417,15 @@ function switchToView(view) {
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === view);
   });
-  // Cerrar overlay IA si la vista no lo permite
+  // Cerrar overlay IA si la vista no lo permite (sólo list/map lo permiten).
   if (view !== "list" && view !== "map") {
     document.getElementById("ai-overlay")?.classList.add("hidden");
     document.getElementById("btn-ai-fab")?.classList.remove("ai-fab--open");
+  }
+  // T4: al entrar en Paradas, decidir selección inicial (cache de localStorage
+  // o, si no hay, propuesta por geolocalización). Lo hace una sola vez por sesión.
+  if (view === "stops") {
+    ensureStopsSelectorBootstrapped();
   }
 }
 
@@ -727,6 +744,7 @@ function setupEvents() {
   setupAIUI();
   setupPullToRefresh();
   setupAlertsUI();
+  setupStopsSelector();
 
   window.addEventListener("resize", () => {
     invalidateMapSize();
@@ -1271,6 +1289,250 @@ function setupAlertsUI() {
 
   // Load existing alerts on init (best-effort, non-blocking)
   loadAlertsList();
+}
+
+// ============================================
+// Paradas (T4) — Selector de parada
+// ============================================
+
+const SUGGESTION_DEBOUNCE_MS = 250;
+const MAX_SUGGESTIONS = 8;
+const STOPS_STORAGE_KEY = "bus_selected_stop";
+
+/**
+ * Localiza la parada en `state.allStops` cuyo `idparada` coincide con `stopId`
+ * (comparación robusta como string) y devuelve el objeto o `null`.
+ */
+function findStopInCatalog(stopId) {
+  if (!stopId || !Array.isArray(state.allStops) || state.allStops.length === 0) {
+    return null;
+  }
+  const target = String(stopId);
+  return state.allStops.find((s) => String(s.idparada) === target) || null;
+}
+
+/**
+ * Filtra `state.allStops` por nombre o número de parada (case-insensitive).
+ *
+ * Reglas de matching:
+ *   - Si `q` es numérico (o parsea a número exacto), se exige coincidencia EXACTA
+ *     con `idparada` (evita que "1" muestre todas las paradas que contienen "1"
+ *     en su id como "12", "100", "1234").
+ *   - En cualquier caso, también se incluye el nombre/descripcion si contiene `q`.
+ *
+ * Devuelve como máximo `limit` resultados.
+ */
+function filterStopsByQuery(q, limit = MAX_SUGGESTIONS) {
+  if (!q) return [];
+  const query = q.toLowerCase().trim();
+  if (query.length === 0) return [];
+
+  const all = state.allStops || [];
+  const numericMatch = /^\d+$/.test(query);
+
+  return all
+    .filter((s) => {
+      const idStr = String(s.idparada ?? "");
+      const desc = (s.descripcion || "").toLowerCase();
+      if (numericMatch) {
+        // Para queries puramente numéricas, priorizamos match exacto por id.
+        if (idStr === query) return true;
+      }
+      return idStr.includes(query) || desc.includes(query);
+    })
+    .slice(0, limit);
+}
+
+/**
+ * Persistir la selección actual en localStorage. Si `stopId` es null, elimina
+ * la entrada (limpieza).
+ */
+function persistSelectedStop(stopId) {
+  try {
+    if (stopId) {
+      localStorage.setItem(STOPS_STORAGE_KEY, stopId);
+    } else {
+      localStorage.removeItem(STOPS_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.warn("[Stops] No se pudo persistir la selección:", e);
+  }
+}
+
+/**
+ * Fija la parada seleccionada en el estado y refresca la cabecera.
+ * NO repinta #stops-content — eso es responsabilidad de T5/T6.
+ */
+function selectStop(stop) {
+  if (!stop) return;
+  const id = String(stop.idparada);
+  const name = (stop.descripcion || "").toString();
+  state.stops.selectedStopId = id;
+  state.stops.selectedStopName = name;
+  persistSelectedStop(id);
+
+  // Actualizar la cabecera in-place (sin reinyectar todo el HTML).
+  const input = document.getElementById("stops-stop-input");
+  if (input) input.value = name;
+  updateStopsStopInfo(name, id);
+  hideStopsSuggestions();
+}
+
+/**
+ * Pinta la cabecera y cablea listeners del selector de parada.
+ * Se llama una sola vez al cargar la página (no en cada entrada a la vista).
+ */
+function setupStopsSelector() {
+  // 1) Hidratar nombre cacheado desde el catálogo, si tenemos el id persistido.
+  if (state.stops.selectedStopId) {
+    const cached = findStopInCatalog(state.stops.selectedStopId);
+    if (cached) state.stops.selectedStopName = cached.descripcion || "";
+  }
+
+  // 2) Pintar la cabecera con la selección actual (si la hay).
+  renderStopsHeader(state.stops.selectedStopName, state.stops.selectedStopId);
+
+  const input = document.getElementById("stops-stop-input");
+  const clearBtn = document.getElementById("stops-stop-clear");
+  const geoBtn = document.getElementById("stops-geo-btn");
+  const suggestions = document.getElementById("stops-suggestions");
+
+  if (!input) return; // markup ausente, abortar silenciosamente
+
+  // 3) Debounce de input
+  let debounceTimer = null;
+  input.addEventListener("input", () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const q = input.value;
+      if (!q.trim()) {
+        hideStopsSuggestions();
+        return;
+      }
+      const matches = filterStopsByQuery(q, MAX_SUGGESTIONS);
+      renderStopsSuggestions(matches, (stop) => selectStop(stop));
+    }, SUGGESTION_DEBOUNCE_MS);
+  });
+
+  // 4) Enter — si hay exactamente una sugerencia visible, seleccionarla.
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = suggestions?.querySelector(".stops-suggestion-item");
+      if (first) first.click();
+    } else if (e.key === "Escape") {
+      hideStopsSuggestions();
+      input.blur();
+    }
+  });
+
+  // 5) Blur — si el usuario borra y sale del foco sin selección, NO cambiar la
+  // selección actual (regla del plan). Restaurar el valor del input a la
+  // selección guardada para coherencia visual.
+  input.addEventListener("blur", () => {
+    // Pequeño timeout para que el click sobre una sugerencia se procese antes.
+    setTimeout(() => {
+      hideStopsSuggestions();
+      if (state.stops.selectedStopName && document.activeElement !== input) {
+        input.value = state.stops.selectedStopName;
+      }
+    }, 150);
+  });
+
+  // 6) Click en input vacío — limpiar y reabrir sugerencias (vacías) — UX opcional.
+  input.addEventListener("focus", () => {
+    if (input.value.trim().length > 0) {
+      const matches = filterStopsByQuery(input.value, MAX_SUGGESTIONS);
+      if (matches.length > 0) {
+        renderStopsSuggestions(matches, (stop) => selectStop(stop));
+      }
+    }
+  });
+
+  // 7) Botón limpiar — borra input + sugerencias pero NO la selección persistida.
+  // (El usuario puede querer ver lo seleccionado sin el texto del input.)
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      input.value = "";
+      input.focus();
+      hideStopsSuggestions();
+    });
+  }
+
+  // 8) Botón geolocalización — propone la parada más cercana al usuario actual.
+  if (geoBtn) {
+    geoBtn.addEventListener("click", async () => {
+      try {
+        const userLoc = await getUserLocation();
+        if (!userLoc || !state.allStops || state.allStops.length === 0) {
+          flashStopsStopInfo("Sin ubicación");
+          return;
+        }
+        // Reutilizamos `getNearbyStops` (geo.js) para mantener la lógica en un sitio.
+        const nearby = getNearbyStops(
+          state.allStops,
+          userLoc.lat,
+          userLoc.lng,
+          1,
+          5000, // Radio amplio: la parada más cercana hasta 5 km
+        );
+        if (nearby.length === 0) {
+          flashStopsStopInfo("Sin paradas cercanas");
+          return;
+        }
+        selectStop(nearby[0]);
+      } catch (e) {
+        console.warn("[Stops] Geolocalización falló:", e);
+        flashStopsStopInfo("Sin ubicación");
+      }
+    });
+  }
+}
+
+/**
+ * Se ejecuta al entrar por PRIMERA vez en la vista Paradas en cada sesión.
+ * Decide la selección inicial:
+ *   - Si ya hay `state.stops.selectedStopId` (de localStorage o ya fijado) → no hace nada.
+ *   - Si no hay selección Y hay `state.userLocation` → propone la más cercana.
+ *   - Si no hay selección ni geo → deja el selector vacío (placeholder en info).
+ *
+ * El flag `state.stops.boostrapped` evita repetir el trabajo en cada entrada.
+ */
+function ensureStopsSelectorBootstrapped() {
+  if (state.stops.boostrapped) {
+    // Aunque ya esté bootstrapped, refrescar el info en caso de que se haya
+    // cambiado la selección por otra vía.
+    updateStopsStopInfo(
+      state.stops.selectedStopName,
+      state.stops.selectedStopId,
+    );
+    return;
+  }
+  state.stops.boostrapped = true;
+
+  if (state.stops.selectedStopId) {
+    // Ya había selección persistida: refrescar nombre si el catálogo lo permite.
+    const cached = findStopInCatalog(state.stops.selectedStopId);
+    if (cached) state.stops.selectedStopName = cached.descripcion || "";
+    return;
+  }
+
+  // No hay selección: intentar proponer la más cercana por geolocalización.
+  // Sólo si ya tenemos ubicación cacheada (init la carga al arrancar).
+  if (state.userLocation && state.allStops && state.allStops.length > 0) {
+    try {
+      const nearby = getNearbyStops(
+        state.allStops,
+        state.userLocation.lat,
+        state.userLocation.lng,
+        1,
+        5000,
+      );
+      if (nearby.length > 0) selectStop(nearby[0]);
+    } catch (e) {
+      console.warn("[Stops] No se pudo proponer parada cercana:", e);
+    }
+  }
 }
 
 // GO
