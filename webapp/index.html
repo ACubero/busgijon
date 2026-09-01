@@ -273,6 +273,14 @@
         </div>
       </div>
 
+      <!-- Paradas: vista de llegadas por parada (placeholder, se rellena en T4-T5) -->
+      <div id="stops-page" class="page-view">
+        <div class="settings-header">
+          <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>Paradas</h2>
+        </div>
+        <div id="stops-content" class="settings-body"></div>
+      </div>
+
       <!-- Transfer page -->
       <div id="transfer-page" class="page-view">
         <div class="settings-header">
@@ -697,6 +705,12 @@
             <line x1="16" y1="6" x2="16" y2="22"></line>
           </svg>
           <span>Mapa</span>
+        </button>
+        <button class="nav-btn" data-view="stops" id="nav-stops">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+          </svg>
+          <span>Paradas</span>
         </button>
         <button class="nav-btn" data-view="settings" id="btn-settings">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

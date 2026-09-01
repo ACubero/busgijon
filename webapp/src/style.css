@@ -273,13 +273,15 @@ body {
 #app[data-view="transfer"] #transfer-page,
 #app[data-view="schedule"] #schedule-page,
 #app[data-view="settings"] #settings-page,
-#app[data-view="alerts"] #alerts-page {
+#app[data-view="alerts"] #alerts-page,
+#app[data-view="stops"] #stops-page {
   display: block;
 }
 #app[data-view="transfer"] #bottom-panel,
 #app[data-view="schedule"] #bottom-panel,
 #app[data-view="settings"] #bottom-panel,
-#app[data-view="alerts"] #bottom-panel {
+#app[data-view="alerts"] #bottom-panel,
+#app[data-view="stops"] #bottom-panel {
   display: none;
 }
 
