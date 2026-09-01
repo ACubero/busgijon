@@ -9,6 +9,7 @@ import {
   authenticate,
   getAllStops,
   getStopDetail,
+  getStopArrivalsGrouped,
   getAllLines,
   getBusRealTime,
   getStopLines,
@@ -43,6 +44,7 @@ import {
   hideStopsSuggestions,
   updateStopsStopInfo,
   flashStopsStopInfo,
+  renderStopsArrivals,
 } from "./ui.js";
 
 import {
@@ -97,6 +99,9 @@ const state = {
   stops: {
     selectedStopId: localStorage.getItem("bus_selected_stop") || null,
     selectedStopName: "",
+    // T6 — marcas de frescura para evitar recargar en cada entrada a la vista.
+    lastFetchedAt: 0,         // timestamp (Date.now()) del último fetch exitoso
+    lastFetchedStopId: null,  // idparada del último fetch (puede no coincidir con la selección actual)
   },
 };
 
@@ -371,6 +376,10 @@ function startAutoRefresh() {
       seconds = state.refreshSeconds;
       loadAllArrivals();
       loadBusPositions();
+      // T6 — refresca también la vista Paradas cuando proceda. La función
+      // ya comprueba internamente si estamos en la vista y hay selección,
+      // así que aquí no añadimos más condicionales.
+      refreshStopsView();
     }
   }, 1000);
 }
@@ -389,6 +398,95 @@ function handleTimerToggle() {
     updateRefreshBadge(state.refreshSeconds, true);
   } else {
     startAutoRefresh();
+  }
+}
+
+// ============================================
+// Vista Paradas — refresco (T6)
+// ============================================
+
+/**
+ * Construye un `Map<code, color>` cruzando `state.allLines`.
+ * - Normaliza colores: si el `colorhex` viene sin "#", se lo añade.
+ * - Si una línea no tiene color o el color no es un hex válido, NO se añade
+ *   al map: `renderStopsArrivals` hará fallback a `getLineColor()`.
+ *
+ * @returns {Map<string,string>} Mapa `lineCode -> #RRGGBB`.
+ */
+function buildLineColorMap() {
+  const map = new Map();
+  const lines = state.allLines || [];
+  for (const line of lines) {
+    const code = String(line.codigo ?? line.idlinea ?? "");
+    if (!code) continue;
+    let color = line.colorhex || line.color || "";
+    if (color && !color.startsWith("#")) color = "#" + color;
+    if (!/^#[0-9A-Fa-f]{6}$/.test(color)) continue; // color inválido, saltar
+    map.set(code, color);
+  }
+  return map;
+}
+
+/**
+ * Refresca la vista Paradas: pide las llegadas agrupadas a la API y las pinta
+ * dentro de `#stops-content`.
+ *
+ * Reglas de cortesía:
+ *  - Si no hay contenedor en el DOM → no hace nada (defensivo).
+ *  - Si no hay parada seleccionada → vacía `#stops-content` (el selector de
+ *    cabecera ya muestra el placeholder).
+ *  - Si la pausa del refresco global está activa → no hace nada: el ciclo
+ *    ya respeta la pausa y no queremos saltárnosla.
+ *  - Si la vista actual NO es `stops` → no hace nada: el resultado se ignora
+ *    y no queremos parpadeos ni gastos de red innecesarios al cambiar de
+ *    pestaña.
+ *
+ * Al finalizar con éxito actualiza `state.stops.lastFetchedAt` y
+ * `lastFetchedStopId` para que `switchToView` pueda implementar el
+ * anti-parpadeo (no recargar si el último fetch fue hace menos de 5s).
+ */
+async function refreshStopsView() {
+  const container = document.getElementById("stops-content");
+  if (!container) return;
+
+  // Respetar la pausa global: si el temporizador está en pausa, no tocamos
+  // nada. Mantiene la regla CLAUDE.md (clic pausa → no se actualiza nada).
+  if (state.refreshPaused) return;
+
+  // Sólo cuando la vista Paradas está activa. En cualquier otra vista el
+  // resultado se ignoraría y solo añadiría requests de red inútiles.
+  if (state.view !== "stops") return;
+
+  const stopId = state.stops.selectedStopId;
+  if (!stopId) {
+    // El selector de cabecera (T4) pinta su propio placeholder; aquí
+    // simplemente dejamos el contenedor vacío para no acumular contenido
+    // obsoleto de una parada anterior.
+    container.innerHTML = "";
+    return;
+  }
+
+  try {
+    const data = await getStopArrivalsGrouped(stopId);
+    const lineColorMap = buildLineColorMap();
+    renderStopsArrivals(container, data, lineColorMap);
+
+    // Marcas de frescura — usadas por switchToView para evitar recargar
+    // en una entrada inmediata posterior a la vista.
+    state.stops.lastFetchedAt = Date.now();
+    state.stops.lastFetchedStopId = stopId;
+  } catch (e) {
+    console.warn("[Stops] Error al cargar llegadas:", e);
+    container.innerHTML = `
+      <div class="stops-error" role="alert">
+        <p>No se pudieron cargar las llegadas.</p>
+        <button type="button" class="stops-retry-btn" id="stops-retry-btn">Reintentar</button>
+      </div>
+    `;
+    const retryBtn = document.getElementById("stops-retry-btn");
+    if (retryBtn) {
+      retryBtn.addEventListener("click", () => refreshStopsView());
+    }
   }
 }
 
@@ -413,6 +511,10 @@ function clearStopFilter() {
 function switchToView(view) {
   const app = document.getElementById("app");
   app.dataset.view = view;
+  // T6 — propagar la vista activa al estado global para que `refreshStopsView`
+  // pueda saber si debe pintar. Antes se leía implícitamente del DOM, pero
+  // mantenerlo en `state` es coherente con el patrón "estado único en main.js".
+  state.view = view;
   if (view === "map") invalidateMapSize();
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === view);
@@ -426,7 +528,31 @@ function switchToView(view) {
   // o, si no hay, propuesta por geolocalización). Lo hace una sola vez por sesión.
   if (view === "stops") {
     ensureStopsSelectorBootstrapped();
+    // T6 — forzar fetch inmediato al entrar en la vista, salvo que ya tengamos
+    // un fetch reciente (< 5 s) para la MISMA parada. Esto evita parpadeos
+    // cuando el usuario cambia rápido entre pestañas, sin penalizar la
+    // primera entrada ni los cambios de parada (esos invalidan el timestamp).
+    maybeRefreshStopsViewOnEnter();
   }
+}
+
+/**
+ * Decide si conviene forzar un fetch de llegadas al entrar en la vista Paradas.
+ *  - Si NO hay parada seleccionada → nada (el selector está vacío).
+ *  - Si el último fetch exitoso fue hace menos de 5 s y para la misma parada
+ *    → nada: la UI ya está al día.
+ *  - En cualquier otro caso → dispara `refreshStopsView()`.
+ */
+function maybeRefreshStopsViewOnEnter() {
+  const stopId = state.stops.selectedStopId;
+  if (!stopId) return;
+  const now = Date.now();
+  const fresh =
+    state.stops.lastFetchedAt > 0 &&
+    state.stops.lastFetchedStopId === stopId &&
+    now - state.stops.lastFetchedAt < 5000;
+  if (fresh) return;
+  refreshStopsView();
 }
 
 function handleRowClick(arrival) {
@@ -1376,6 +1502,13 @@ function selectStop(stop) {
   if (input) input.value = name;
   updateStopsStopInfo(name, id);
   hideStopsSuggestions();
+
+  // T6 — al cambiar la parada seleccionada, disparar un fetch inmediato de
+  // llegadas para esa nueva parada. `refreshStopsView` ya respeta la pausa
+  // global y la vista activa; al estar dentro de la selección, asumimos que
+  // el usuario quiere ver la nueva parada ya. El fetch desde el ciclo global
+  // (cada N segundos) también la refrescará, pero aquí evitamos la espera.
+  refreshStopsView();
 }
 
 /**
