@@ -6,6 +6,8 @@
  *     Falls back to direct EMTUSA on 5xx/conn-error (graceful fallback).
  */
 
+import { fixText } from "./ui.js";
+
 const isProd = import.meta.env.PROD;
 
 // Primary: backend proxy (credentials held server-side)
@@ -211,4 +213,143 @@ export async function getBusRealTime() {
 /** Obtener posición de bus en una línea/trayecto */
 export async function getBusPosition(lineId, routeId) {
   return apiGet(`autobuses/posicion/${lineId}/${routeId}`);
+}
+
+// ============================================
+// Helpers de agrupación (vista Paradas)
+// ============================================
+
+/**
+ * Obtener las próximas llegadas de una parada agrupadas por (línea + trayecto).
+ *
+ * Reutiliza `getStopDetail` (mismo endpoint que la vista Llegadas) y agrupa el
+ * array crudo `llegadas` por línea + dirección (trayecto). El resultado está
+ * pensado para que T5 lo consuma directamente como modelo de render.
+ *
+ * Forma del array crudo que devuelve la API EMTUSA
+ * (verificada contra `extractArrivals` en main.js):
+ * ```
+ * {
+ *   idparada: string,
+ *   descripcion: string,         // nombre de la parada
+ *   llegadas: [
+ *     {
+ *       linea:   { codigo, idlinea, descripcion, colorhex },
+ *       trayecto:{ destino, descripcion, idtrayecto? },
+ *       minutos: number,
+ *       distancia: number
+ *     },
+ *     ...
+ *   ]
+ * }
+ * ```
+ *
+ * NOTA: el plan original asumía un objeto plano por llegada con campos
+ * `line`, `route`, `destination`, `bus`, `minutes`. La forma real es la
+ * anidada de arriba; esta función se adapta a la realidad y expone la forma
+ * normalizada que la vista Paradas espera (descrita en el JSDoc del return).
+ *
+ * @param {string|number} stopId Identificador de la parada.
+ * @returns {Promise<{
+ *   stopId: string,
+ *   stopName: string,
+ *   fetchedAt: number,
+ *   groups: Array<{
+ *     line: string,
+ *     lineName: string,
+ *     route: string|number,
+ *     destination: string,
+ *     arrivals: Array<{ bus: string|number|null, minutes: number, real: boolean }>
+ *   }>
+ * }>}
+ *  - `bus` es el identificador del vehículo si la API lo proporcionara;
+ *    actualmente la API EMTUSA no lo incluye por llegada, así que se deja `null`.
+ *  - `real` se mantiene a `true` porque esta fuente es la predicción en vivo.
+ *  - `groups` ordenado por línea (numérico ascendente si es posible, si no
+ *    lexicográfico) y dentro de cada grupo `arrivals` por `minutes` ascendente.
+ *
+ * No cachea: el refresco lo gestiona el ciclo global de la UI.
+ * Propaga el error si `getStopDetail` lanza (la vista decide cómo mostrarlo).
+ */
+export async function getStopArrivalsGrouped(stopId) {
+  const stopData = await getStopDetail(stopId);
+
+  const stopName = fixText(stopData?.descripcion || "") || "";
+  const stopIdOut = String(stopData?.idparada ?? stopId);
+  const llegadas = Array.isArray(stopData?.llegadas) ? stopData.llegadas : [];
+
+  // Agrupación por (line + route)
+  const groupsMap = new Map();
+
+  for (const item of llegadas) {
+    const linea = item.linea || {};
+    const trayecto = item.trayecto || {};
+
+    // Identificador de línea: preferimos `codigo` (humano, ej. "L12") y si no,
+    // el `idlinea` interno. Lo conservamos tal cual viene para no perder
+    // precisión (puede ser string o number).
+    const line = linea.codigo ?? linea.idlinea ?? "";
+
+    // Identificador de trayecto/dirección: la API puede exponer `idtrayecto`
+    // en algunos casos; si no, sintetizamos un id a partir de su posición
+    // dentro de cada línea para mantener grupos estables dentro de la misma
+    // petición (la combinación line + destino sigue siendo única por grupo).
+    const route =
+      trayecto.idtrayecto ??
+      trayecto.codigo ??
+      groupsMap.size; // fallback defensivo; se reasigna por (line+destino) abajo
+
+    const destination = trayecto.destino || trayecto.descripcion || "";
+    const lineName = linea.descripcion || "";
+
+    // Clave compuesta: si no tenemos idtrayecto real, usamos el destino como
+    // discriminante del grupo dentro de la misma línea.
+    const groupKey = trayecto.idtrayecto != null
+      ? `${line}__${trayecto.idtrayecto}`
+      : `${line}__${(destination || "").toLowerCase()}`;
+
+    const minutes = typeof item.minutos === "number" ? item.minutos : null;
+
+    if (!groupsMap.has(groupKey)) {
+      groupsMap.set(groupKey, {
+        line,
+        lineName: fixText(lineName),
+        route,
+        destination: fixText(destination),
+        arrivals: [],
+      });
+    }
+
+    if (minutes == null) {
+      // Sin minutos válidos no aportamos a la lista (no podemos mostrar "en N min").
+      continue;
+    }
+
+    groupsMap.get(groupKey).arrivals.push({
+      bus: item.bus ?? item.idbus ?? null,
+      minutes,
+      real: true,
+    });
+  }
+
+  // Orden interno de cada grupo por minutos ascendente
+  for (const g of groupsMap.values()) {
+    g.arrivals.sort((a, b) => a.minutes - b.minutes);
+  }
+
+  // Orden externo por línea: numérico ascendente si todas son numéricas;
+  // si no, lexicográfico.
+  const groups = Array.from(groupsMap.values());
+  const allNumeric = groups.every((g) => !isNaN(Number(g.line)) && g.line !== "");
+  groups.sort((a, b) => {
+    if (allNumeric) return Number(a.line) - Number(b.line);
+    return String(a.line).localeCompare(String(b.line), "es");
+  });
+
+  return {
+    stopId: stopIdOut,
+    stopName,
+    fetchedAt: Date.now(),
+    groups,
+  };
 }

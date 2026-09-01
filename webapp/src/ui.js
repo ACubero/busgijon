@@ -3,7 +3,8 @@
  */
 
 // Elimina caracteres fuera del rango latino (corrupción en BD de EMTUSA)
-function fixText(str) {
+// Exportada para que api.js pueda reutilizarla en getStopArrivalsGrouped sin duplicar la regex.
+export function fixText(str) {
   if (!str) return str;
   return str.replace(/[^\x20-\x7E\u00A0-\u024F]/g, "").trim();
 }
