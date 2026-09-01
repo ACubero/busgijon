@@ -719,6 +719,159 @@ export function flashStopsStopInfo(msg, durationMs = 3000) {
   }, durationMs);
 }
 
+// ============================================
+// Vista Paradas — Render de llegadas agrupadas por línea (T5)
+// ============================================
+
+/**
+ * Pinta el resultado de `getStopArrivalsGrouped` dentro de `#stops-content`.
+ *
+ * Estructura esperada (`data`):
+ * ```
+ * {
+ *   stopId, stopName, fetchedAt,
+ *   groups: [{ line, lineName, route, destination,
+ *              arrivals: [{ bus, minutes, real }] }]
+ * }
+ * ```
+ *
+ * Comportamiento:
+ * - Si `data` es null o `data.groups` está vacío → estado vacío textual
+ *   (sin emojis decorativos, regla CLAUDE.md: mínimo ruido visual).
+ * - Si hay grupos → cabecera con marca de frescura (`Actualizado HH:MM:SS`)
+ *   y una tarjeta por grupo con badge de línea + chips de tiempo.
+ *
+ * Esta función NO cablea listeners: solo pinta. La integración con el ciclo
+ * de refresco global y la construcción del `lineColorMap` las hace T6 en main.js.
+ *
+ * @param {HTMLElement} container - Elemento `#stops-content`.
+ * @param {{stopId:string, stopName:string, fetchedAt:number, groups:Array}|null} data
+ * @param {Map<string,string>|null} lineColorMap - Mapa código de línea (`"L12"`)
+ *   → colorhex con `#` delante. Si es null o falta la clave, se usa
+ *   `getLineColor()` (paleta fallback ya cacheada en este módulo).
+ */
+export function renderStopsArrivals(container, data, lineColorMap) {
+  if (!container) return;
+
+  // Estado vacío: sin datos o sin grupos → solo texto, sin icono (uso exterior)
+  if (!data || !Array.isArray(data.groups) || data.groups.length === 0) {
+    container.innerHTML =
+      '<p class="stops-empty">Selecciona una parada para ver los próximos buses.</p>';
+    return;
+  }
+
+  // Marca de frescura (HH:MM:SS en local, coherente con el resto de la app)
+  let fetchedLabel = "";
+  if (data.fetchedAt) {
+    const d = new Date(data.fetchedAt);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    fetchedLabel = `Actualizado ${hh}:${mm}:${ss}`;
+  }
+
+  const groupsHtml = data.groups
+    .map((group) => renderStopGroup(group, lineColorMap))
+    .join("");
+
+  container.innerHTML = `
+    <div class="stops-fetched-at" aria-live="polite">${escapeHtml(fetchedLabel)}</div>
+    <div class="stop-groups">${groupsHtml}</div>
+  `;
+}
+
+/**
+ * Renderiza un único grupo (línea + dirección) como tarjeta `.stop-group`.
+ * Helper privado — no se exporta porque el contrato público es `renderStopsArrivals`.
+ */
+function renderStopGroup(group, lineColorMap) {
+  // Resolución de color: 1) lineColorMap (datos reales de getAllLines),
+  // 2) getLineColor() (paleta fallback determinista por lineId).
+  const lineKey = String(group.line ?? "");
+  const colorFromMap = lineColorMap && lineColorMap.get(lineKey);
+  const color = colorFromMap || getLineColor(lineKey);
+  const textColor = getTextColor(color);
+
+  // Etiqueta humana: preferimos lineName si viene con texto; si no, line.
+  const lineLabel = group.lineName && String(group.lineName).trim()
+    ? String(group.lineName).trim()
+    : lineKey;
+  const destination = fixText(group.destination || "");
+
+  const headerTitle = destination
+    ? `${escapeHtml(lineLabel)} — ${escapeHtml(destination)}`
+    : escapeHtml(lineLabel);
+
+  const arrivals = Array.isArray(group.arrivals) ? group.arrivals : [];
+  let chipsHtml;
+  if (arrivals.length === 0) {
+    chipsHtml =
+      '<span class="stop-group__empty">Sin buses próximos</span>';
+  } else {
+    chipsHtml = arrivals
+      .filter((a) => a && a.minutes !== null && a.minutes !== undefined && !isNaN(a.minutes))
+      .map((a) => renderStopChip(a))
+      .join("");
+    // Si tras filtrar no queda ningún chip (todos inválidos) caemos al mensaje
+    if (!chipsHtml) {
+      chipsHtml =
+        '<span class="stop-group__empty">Sin buses próximos</span>';
+    }
+  }
+
+  const ariaLabel = `${lineLabel}${destination ? " con destino a " + destination : ""}`;
+
+  return `
+    <section class="stop-group" aria-label="${escapeAttr(ariaLabel)}">
+      <header class="stop-group__header">
+        <div
+          class="stop-group__line-badge"
+          style="background:${color};color:${textColor}"
+        >${escapeHtml(lineKey || "—")}</div>
+        <div class="stop-group__title">${headerTitle}</div>
+      </header>
+      <div class="stop-group__time-chips">${chipsHtml}</div>
+    </section>
+  `;
+}
+
+/**
+ * Renderiza un único chip de tiempo (`<button>` no interactivo, solo visual).
+ *
+ * Reglas (extraídas de CLAUDE.md):
+ * - Tiempo siempre 2 dígitos con `padStart(2,"0")`.
+ * - Bus en parada (`minutes === 0`) → solo `⬤` sin texto.
+ * - Color según `timeColorThresholds` (configurable en Ajustes):
+ *   <= verde → success, <= amarillo → warning, > amarillo → accent.
+ *
+ * Si `minutes` es null o no numérico, el caller debería haberlo filtrado;
+ * aún así lo cubrimos por defensa.
+ */
+function renderStopChip(arrival) {
+  const minutes = arrival.minutes;
+  if (minutes === null || minutes === undefined || isNaN(minutes)) return "";
+
+  // Bus en parada → solo círculo, sin texto (regla CLAUDE.md)
+  if (minutes === 0) {
+    return `<span class="stop-group__chip stop-group__chip--arrived" aria-label="Bus en la parada"><span class="stop-group__chip-dot" aria-hidden="true">⬤</span></span>`;
+  }
+
+  const cls = chipClassForMinutes(minutes);
+  const label = String(minutes).padStart(2, "0");
+  return `<span class="stop-group__chip ${cls}" aria-label="${minutes} minutos">${label}</span>`;
+}
+
+/**
+ * Devuelve la clase CSS del chip según los umbrales globales configurados.
+ * Helper extraído para que la lógica de thresholds viva en un único sitio
+ * (también la usa `timeCellFor` para `.arrival-min`).
+ */
+function chipClassForMinutes(minutes) {
+  if (minutes <= timeColorThresholds.green) return "stop-group__chip--success";
+  if (minutes <= timeColorThresholds.yellow) return "stop-group__chip--warning";
+  return "stop-group__chip--accent";
+}
+
 // --- Helpers locales de escapado HTML (la cabecera se inyecta con innerHTML) ---
 function escapeHtml(str) {
   return String(str)

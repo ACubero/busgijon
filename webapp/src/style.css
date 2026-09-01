@@ -746,6 +746,164 @@ html.light-theme .stops-suggestion-item {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Vista Paradas — Llegadas agrupadas por línea (T5) ── */
+
+/* Estado vacío (sin parada seleccionada o sin llegadas) */
+.stops-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--text-secondary);
+  font-size: var(--base-font-size, 16px);
+  margin: 0;
+}
+
+/* Marca de frescura: "Actualizado HH:MM:SS" sobre la lista */
+.stops-fetched-at {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin: 0 4px 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.stop-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tarjeta de grupo (línea + dirección) */
+.stop-group {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 0;
+  animation: slideUp 0.25s var(--ease) both;
+}
+html.light-theme .stop-group {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Cabecera del grupo: badge + título */
+.stop-group__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+/* Badge cuadrado de línea — mismo patrón que .arrival-badge de Llegadas */
+.stop-group__line-badge {
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  min-width: 58px;
+  max-width: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stop-group__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--base-font-size, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lista de chips de tiempo (horizontal, con wrap si no caben) */
+.stop-group__time-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.stop-group__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  font-size: var(--base-font-size, 16px);
+  font-weight: 600;
+  line-height: 1;
+  color: white;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.stop-group__chip--success {
+  background: var(--success);
+}
+.stop-group__chip--warning {
+  background: var(--warning);
+  /* Amarillo sobre fondo claro: forzar texto oscuro para contraste (regla CLAUDE.md) */
+  color: #1a1300;
+}
+html.light-theme .stop-group__chip--warning {
+  color: #1a1300;
+}
+.stop-group__chip--accent {
+  background: var(--accent);
+}
+/* Bus en parada: solo el círculo, sin texto numérico */
+.stop-group__chip--arrived {
+  background: var(--success);
+  padding: 6px 12px;
+}
+.stop-group__chip-dot {
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Texto "Sin buses próximos" cuando un grupo no tiene llegadas */
+.stop-group__empty {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Slider de tamaño de fuente: respetar html.large-text */
+.large-text .stop-group__line-badge {
+  min-width: 66px;
+  max-width: 66px;
+  font-size: 24px;
+}
+.large-text .stop-group__title {
+  font-size: 1.125rem; /* ~18px sobre base 16 */
+}
+.large-text .stop-group__chip {
+  font-size: 1.125rem;
+  padding: 8px 12px;
+  min-width: 44px;
+}
+.large-text .stop-group__empty {
+  font-size: 1rem;
+}
+.large-text .stops-empty {
+  font-size: 1.125rem;
+  padding: 28px 16px;
+}
+.large-text .stops-fetched-at {
+  font-size: 0.95rem;
+}
+
 .settings-label {
   font-size: 0.8125rem;
   font-weight: 600;
