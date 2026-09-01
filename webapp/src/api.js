@@ -219,6 +219,58 @@ export async function getBusPosition(lineId, routeId) {
 // Helpers de agrupación (vista Paradas)
 // ============================================
 
+// ============================================
+// Helpers internos
+// ============================================
+
+/**
+ * Distancia en metros entre dos coordenadas (lat/lng en grados decimales)
+ * usando la fórmula de Haversine con R = 6371 km.
+ *
+ * Privada: solo se usa dentro de este módulo para cruzar posiciones GPS
+ * reales de buses contra la posición de la parada.
+ *
+ * @param {number} lat1 Latitud punto 1 (grados).
+ * @param {number} lng1 Longitud punto 1 (grados).
+ * @param {number} lat2 Latitud punto 2 (grados).
+ * @param {number} lng2 Longitud punto 2 (grados).
+ * @returns {number} Distancia en metros (>= 0). Devuelve NaN si alguna
+ *   entrada no es finita.
+ */
+function calculateDistanceMeters(lat1, lng1, lat2, lng2) {
+  if (
+    !Number.isFinite(lat1) || !Number.isFinite(lng1) ||
+    !Number.isFinite(lat2) || !Number.isFinite(lng2)
+  ) {
+    return NaN;
+  }
+  const R = 6371000; // radio terrestre medio en metros
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lng2 - lng1);
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Umbral máximo (en metros) para considerar que un bus GPS está "razonablemente
+// cerca" de la parada como para listarlo como "siguiente al siguiente".
+// Por encima de este valor lo descartamos: probable bus fuera de servicio,
+// en otra ruta o ya regresando a cocheras.
+//
+// NOTA sobre la limitación: con esto NO comprobamos que el bus esté
+// efectivamente acercándose a la parada (rumbo / sentido). Podría darse el
+// caso teórico de un bus de la misma línea y trayecto pasando en dirección
+// contraria a más de 10 km. Se documenta aquí para futuras mejoras: se
+// podría cruzar también con `trayectos/trayectos/{linea}/{trayecto}` para
+// exigir que el bus esté a <500m de alguna parada de la ruta.
+const ESTIMATION_MAX_DISTANCE_METERS = 10000;
+
 /**
  * Obtener las próximas llegadas de una parada agrupadas por (línea + trayecto).
  *
@@ -244,12 +296,30 @@ export async function getBusPosition(lineId, routeId) {
  * }
  * ```
  *
+ * Forma de cada elemento en `options.busPositions` (endpoint
+ * `autobuses/coordenadas`):
+ * ```
+ * {
+ *   idautobus: string|number,
+ *   linea:   { codigo, idlinea, descripcion, colorhex },
+ *   trayecto:{ idtrayecto, destino, descripcion },
+ *   latitud, longitud, ...
+ * }
+ * ```
+ *
  * NOTA: el plan original asumía un objeto plano por llegada con campos
  * `line`, `route`, `destination`, `bus`, `minutes`. La forma real es la
  * anidada de arriba; esta función se adapta a la realidad y expone la forma
  * normalizada que la vista Paradas espera (descrita en el JSDoc del return).
  *
  * @param {string|number} stopId Identificador de la parada.
+ * @param {object} [options] Opciones adicionales (todas opcionales).
+ * @param {Array} [options.busPositions] Lista cruda de buses con GPS activo,
+ *   tal cual la devuelve `getBusRealTime()`. Si se pasa y tiene datos, se
+ *   cruza contra cada grupo para añadir estimaciones de "siguiente al
+ *   siguiente" (sin tiempo, solo distancia).
+ * @param {{lat:number,lng:number}} [options.stopCoords] Coordenadas de la
+ *   parada. Necesarias para calcular distancia contra cada bus GPS.
  * @returns {Promise<{
  *   stopId: string,
  *   stopName: string,
@@ -259,27 +329,58 @@ export async function getBusPosition(lineId, routeId) {
  *     lineName: string,
  *     route: string|number,
  *     destination: string,
- *     arrivals: Array<{ bus: string|number|null, minutes: number, real: boolean }>
+ *     arrivals: Array<{
+ *       bus: string|number|null, minutes: number|null, real: boolean,
+ *       distance: number|null
+ *     }>
  *   }>
  * }>}
  *  - `bus` es el identificador del vehículo si la API lo proporcionara;
  *    actualmente la API EMTUSA no lo incluye por llegada, así que se deja `null`.
- *  - `real` se mantiene a `true` porque esta fuente es la predicción en vivo.
+ *  - `real=true` ⇒ dato directo de la API (predicción en vivo).
+ *  - `real=false` ⇒ estimación cruzada por GPS: NO hay minutos, solo
+ *    `distance` en metros. La UI debe mostrar la distancia, no "en N min".
  *  - `groups` ordenado por línea (numérico ascendente si es posible, si no
- *    lexicográfico) y dentro de cada grupo `arrivals` por `minutes` ascendente.
+ *    lexicográfico). Dentro de cada grupo, primero llegadas reales
+ *    (ordenadas por `minutes` asc) y luego estimaciones (ordenadas por
+ *    `distance` asc).
+ *  - `groups[i].hasEstimations` (no documentado arriba por brevedad): `true`
+ *    si el grupo tiene al menos un arrival con `real=false`. Lo usa la UI
+ *    si quiere mostrar un marcador visual extra.
  *
  * No cachea: el refresco lo gestiona el ciclo global de la UI.
  * Propaga el error si `getStopDetail` lanza (la vista decide cómo mostrarlo).
  */
-export async function getStopArrivalsGrouped(stopId) {
+export async function getStopArrivalsGrouped(stopId, options = {}) {
   const stopData = await getStopDetail(stopId);
 
   const stopName = fixText(stopData?.descripcion || "") || "";
   const stopIdOut = String(stopData?.idparada ?? stopId);
   const llegadas = Array.isArray(stopData?.llegadas) ? stopData.llegadas : [];
 
+  // Opciones de cruce con GPS: si falta alguna pieza, no aplicamos
+  // estimaciones y mantenemos el comportamiento original (backward compat).
+  const busPositions = Array.isArray(options?.busPositions)
+    ? options.busPositions
+    : null;
+  const stopCoords = options?.stopCoords;
+  const hasStopCoords =
+    stopCoords &&
+    Number.isFinite(parseFloat(stopCoords.lat)) &&
+    Number.isFinite(parseFloat(stopCoords.lng));
+  const stopLat = hasStopCoords ? parseFloat(stopCoords.lat) : null;
+  const stopLng = hasStopCoords ? parseFloat(stopCoords.lng) : null;
+  const canEstimate =
+    busPositions !== null && busPositions.length > 0 && hasStopCoords;
+
   // Agrupación por (line + route)
   const groupsMap = new Map();
+
+  // Acumulamos además, por (line + route), los idautobus de las llegadas
+  // reales para no duplicarlos como "siguiente al siguiente" cuando la API
+  // sí los exponga (defensa contra idautobus repetidos en distintas
+  // respuestas del endpoint en un mismo instante).
+  const realBusIdsByGroupKey = new Map();
 
   for (const item of llegadas) {
     const linea = item.linea || {};
@@ -309,6 +410,7 @@ export async function getStopArrivalsGrouped(stopId) {
       : `${line}__${(destination || "").toLowerCase()}`;
 
     const minutes = typeof item.minutos === "number" ? item.minutos : null;
+    const itemBusId = item.bus ?? item.idbus ?? item.idautobus ?? null;
 
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, {
@@ -317,7 +419,16 @@ export async function getStopArrivalsGrouped(stopId) {
         route,
         destination: fixText(destination),
         arrivals: [],
+        hasEstimations: false,
       });
+    }
+
+    // Registro de idautobus ya presente como llegada real (si lo hay)
+    if (itemBusId != null) {
+      if (!realBusIdsByGroupKey.has(groupKey)) {
+        realBusIdsByGroupKey.set(groupKey, new Set());
+      }
+      realBusIdsByGroupKey.get(groupKey).add(String(itemBusId));
     }
 
     if (minutes == null) {
@@ -326,15 +437,84 @@ export async function getStopArrivalsGrouped(stopId) {
     }
 
     groupsMap.get(groupKey).arrivals.push({
-      bus: item.bus ?? item.idbus ?? null,
+      bus: itemBusId,
       minutes,
       real: true,
+      distance: typeof item.distancia === "number" ? item.distancia : null,
     });
   }
 
-  // Orden interno de cada grupo por minutos ascendente
+  // ----------------------------------------------------------
+  // Cruce con posiciones GPS reales (estimación "siguiente al siguiente")
+  // ----------------------------------------------------------
+  // Sólo si llegamos datos suficientes. La idea: para cada grupo, buscar
+  // buses en circulación de la misma línea y trayecto que NO estén ya
+  // listados como llegadas reales, y añadirlos como "estimación" con
+  // distancia pero sin minutos.
+  if (canEstimate) {
+    for (const group of groupsMap.values()) {
+      // Sólo aplicamos cruce si el grupo tiene un `route` numérico
+      // (idtrayecto). Sin ese identificador no podemos comparar con el
+      // campo `trayecto.idtrayecto` del bus GPS y meteríamos estimaciones
+      // en grupos cruzados.
+      if (typeof group.route !== "number") continue;
+
+      const groupLine = String(group.line ?? "");
+      const realBusIds = realBusIdsByGroupKey.get(groupKeyOf(group)) || new Set();
+
+      const estimations = [];
+      for (const bus of busPositions) {
+        const busLine = bus?.linea?.codigo ?? bus?.linea?.idlinea ?? bus?.codigo;
+        if (String(busLine ?? "") !== groupLine) continue;
+
+        const busRoute = bus?.trayecto?.idtrayecto;
+        if (typeof busRoute !== "number") continue;
+        if (busRoute !== group.route) continue;
+
+        const busId = bus?.idautobus ?? bus?.idbus ?? null;
+        if (busId != null && realBusIds.has(String(busId))) continue;
+
+        const busLat = parseFloat(bus?.latitud);
+        const busLng = parseFloat(bus?.longitud);
+        if (!Number.isFinite(busLat) || !Number.isFinite(busLng)) continue;
+
+        const distance = calculateDistanceMeters(
+          stopLat, stopLng, busLat, busLng,
+        );
+        if (!Number.isFinite(distance)) continue;
+        // Filtro de descarte: si el bus está demasiado lejos, no lo
+        // contamos (ver `ESTIMATION_MAX_DISTANCE_METERS`).
+        if (distance > ESTIMATION_MAX_DISTANCE_METERS) continue;
+
+        estimations.push({
+          bus: busId != null ? String(busId) : null,
+          minutes: null,           // no sabemos el ETA real
+          real: false,            // estimación cruzada por GPS
+          distance: Math.round(distance),
+        });
+      }
+
+      if (estimations.length > 0) {
+        // Ordenamos por distancia ascendente: el más cercano primero
+        // (es nuestra mejor apuesta de "siguiente").
+        estimations.sort((a, b) => a.distance - b.distance);
+        group.arrivals.push(...estimations);
+        group.hasEstimations = true;
+      }
+    }
+  }
+
+  // Orden interno de cada grupo: primero las llegadas reales por minutos,
+  // luego las estimaciones por distancia. Hacemos un orden estable usando
+  // un flag derivado.
   for (const g of groupsMap.values()) {
-    g.arrivals.sort((a, b) => a.minutes - b.minutes);
+    g.arrivals.sort((a, b) => {
+      // Reales antes que estimaciones
+      if (a.real !== b.real) return a.real ? -1 : 1;
+      if (a.real) return a.minutes - b.minutes;
+      // Estimaciones: por distancia ascendente
+      return (a.distance ?? Infinity) - (b.distance ?? Infinity);
+    });
   }
 
   // Orden externo por línea: numérico ascendente si todas son numéricas;
@@ -352,4 +532,14 @@ export async function getStopArrivalsGrouped(stopId) {
     fetchedAt: Date.now(),
     groups,
   };
+}
+
+// Helper interno: reconstruir la `groupKey` de un `group` ya construido.
+// La regla está duplicada arriba a propósito (no exportamos la lambda)
+// para no acoplar este módulo con un cambio futuro en la lógica de claves.
+function groupKeyOf(group) {
+  if (typeof group.route === "number") {
+    return `${group.line}__${group.route}`;
+  }
+  return `${group.line}__${String(group.destination || "").toLowerCase()}`;
 }

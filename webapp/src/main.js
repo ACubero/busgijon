@@ -467,7 +467,38 @@ async function refreshStopsView() {
   }
 
   try {
-    const data = await getStopArrivalsGrouped(stopId);
+    // T7 — cruce con posiciones GPS reales para mostrar "el siguiente al
+    // siguiente" bus. Hacemos las dos llamadas en paralelo y nunca dejamos
+    // que un fallo de `getBusRealTime` rompa la vista: si la API GPS
+    // está caída, simplemente caemos al comportamiento original (sólo
+    // llegadas reales con `minutes`).
+    const stopInfo = state.allStops.find(
+      (s) => String(s.idparada) === String(stopId),
+    );
+    const stopLat = parseFloat(stopInfo?.latitud);
+    const stopLng = parseFloat(stopInfo?.longitud);
+    const stopCoords =
+      Number.isFinite(stopLat) && Number.isFinite(stopLng)
+        ? { lat: stopLat, lng: stopLng }
+        : null;
+
+    let busPositions = null;
+    try {
+      // Sin caché: queremos datos frescos en cada refresco de la vista.
+      const raw = await getBusRealTime();
+      busPositions = Array.isArray(raw) ? raw : raw?.autobuses || null;
+    } catch (busErr) {
+      console.warn(
+        "[Stops] No se pudieron cargar posiciones GPS, se omite cruce:",
+        busErr?.message || busErr,
+      );
+      busPositions = null;
+    }
+
+    const data = await getStopArrivalsGrouped(stopId, {
+      busPositions,
+      stopCoords,
+    });
     const lineColorMap = buildLineColorMap();
     renderStopsArrivals(container, data, lineColorMap);
 

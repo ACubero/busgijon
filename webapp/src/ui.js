@@ -809,7 +809,23 @@ function renderStopGroup(group, lineColorMap) {
       '<span class="stop-group__empty">Sin buses próximos</span>';
   } else {
     chipsHtml = arrivals
-      .filter((a) => a && a.minutes !== null && a.minutes !== undefined && !isNaN(a.minutes))
+      .filter((a) => {
+        if (!a) return false;
+        // Llegada real: debe tener minutos numéricos válidos
+        if (a.real) {
+          return (
+            a.minutes !== null &&
+            a.minutes !== undefined &&
+            !isNaN(a.minutes)
+          );
+        }
+        // Estimación cruzada por GPS: debe tener distancia válida en metros
+        return (
+          typeof a.distance === "number" &&
+          Number.isFinite(a.distance) &&
+          a.distance >= 0
+        );
+      })
       .map((a) => renderStopChip(a))
       .join("");
     // Si tras filtrar no queda ningún chip (todos inválidos) caemos al mensaje
@@ -844,11 +860,32 @@ function renderStopGroup(group, lineColorMap) {
  * - Color según `timeColorThresholds` (configurable en Ajustes):
  *   <= verde → success, <= amarillo → warning, > amarillo → accent.
  *
+ * Estimaciones por GPS (`real === false`):
+ * - No tenemos minutos, sólo distancia en metros.
+ * - Mostramos la distancia formateada: < 1000m → "850m"; >= 1000m → "1.2 km"
+ *   con 1 decimal.
+ * - Clase CSS `stop-group__chip--estimation` para que se distinga visualmente
+ *   (borde discontinuo y opacidad reducida — ver style.css).
+ * - aria-label describe que es una estimación y la distancia.
+ *
  * Si `minutes` es null o no numérico, el caller debería haberlo filtrado;
  * aún así lo cubrimos por defensa.
  */
 function renderStopChip(arrival) {
   const minutes = arrival.minutes;
+
+  // ---------------------------------------------------------------
+  // Estimación cruzada por GPS (T7): sin minutos, mostramos distancia.
+  // ---------------------------------------------------------------
+  if (arrival && arrival.real === false) {
+    const distance = arrival.distance;
+    if (typeof distance !== "number" || !Number.isFinite(distance) || distance < 0) {
+      return "";
+    }
+    const { label, ariaLabel } = formatEstimationDistance(distance);
+    return `<span class="stop-group__chip stop-group__chip--estimation" aria-label="${escapeAttr(ariaLabel)}">${escapeHtml(label)}</span>`;
+  }
+
   if (minutes === null || minutes === undefined || isNaN(minutes)) return "";
 
   // Bus en parada → solo círculo, sin texto (regla CLAUDE.md)
@@ -859,6 +896,38 @@ function renderStopChip(arrival) {
   const cls = chipClassForMinutes(minutes);
   const label = String(minutes).padStart(2, "0");
   return `<span class="stop-group__chip ${cls}" aria-label="${minutes} minutos">${label}</span>`;
+}
+
+/**
+ * Formatea la distancia de una estimación GPS en etiqueta humana para el chip.
+ *
+ * Reglas (CLARAS y orientadas a presbicia):
+ * - < 1000 m → "850m" (sin decimales, metros enteros)
+ * - >= 1000 m → "1.2 km" (1 decimal, kilómetros)
+ *
+ * Para el aria-label damos una versión más descriptiva (en español).
+ *
+ * @param {number} meters Distancia en metros (>= 0).
+ * @returns {{label: string, ariaLabel: string}}
+ */
+function formatEstimationDistance(meters) {
+  if (meters < 1000) {
+    const rounded = Math.round(meters);
+    return {
+      label: `${rounded}m`,
+      ariaLabel: `Próximo bus estimado por posición GPS, a ${rounded} metros`,
+    };
+  }
+  const km = meters / 1000;
+  const kmStr = km.toFixed(1);
+  // En España se usa coma decimal, pero en la UI de la app ya convivimos con
+  // números en formato inglés en otras partes (lat/lng, etc.). Mantenemos
+  // el punto decimal por consistencia con el resto de la PWA y para que el
+  // ancho del chip sea predecible.
+  return {
+    label: `${kmStr} km`,
+    ariaLabel: `Próximo bus estimado por posición GPS, a ${kmStr} kilómetros`,
+  };
 }
 
 /**
