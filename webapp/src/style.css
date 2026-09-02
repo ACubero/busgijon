@@ -1164,8 +1164,8 @@ html.light-theme .stop-group__chip--estimation {
 }
 .arrival-dist {
   flex-shrink: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -1667,7 +1667,7 @@ html.light-theme .stop-group__chip--estimation {
   font-size: 15px;
 }
 .large-text .arrival-dist {
-  font-size: 13px;
+  font-size: 11px;
 }
 .large-text .arrival-min {
   font-size: 32px;
