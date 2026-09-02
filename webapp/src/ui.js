@@ -185,9 +185,9 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
     .join("");
 
   if (onRowClick) {
-    container.querySelectorAll(".arrival-row[data-idx], [data-idx]").forEach((el) => {
+    container.querySelectorAll(".arrival-row[data-idx]").forEach((el) => {
       el.addEventListener("click", (e) => {
-        if (e.target.closest(".fav-btn")) return;
+        if (e.target.closest(".fav-btn, .alert-btn")) return;
         const idx = parseInt(el.dataset.idx);
         if (flat[idx]) onRowClick(flat[idx]);
       });
