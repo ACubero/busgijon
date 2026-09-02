@@ -2255,6 +2255,23 @@ html.light-theme .ai-settings-input {
   height: 18px;
   stroke-width: 1.6;
 }
+
+/* Confirm button — override .settings-apply sizing only inside the alert dialog */
+.alert-dialog-content .alert-dialog-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: calc(100% - 40px);
+  margin: 8px 20px 20px;
+  font-size: var(--base-font-size);
+  padding: 14px;
+}
+.alert-dialog-content .alert-dialog-confirm-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
 .alert-dialog-header svg {
   color: var(--accent);
   flex-shrink: 0;

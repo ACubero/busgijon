@@ -469,7 +469,10 @@ export function showAlertDialog(arrival, onConfirm) {
         </div>
         <p class="alert-dialog-hint">Recibirás una notificación push una sola vez cuando el bus esté a este número de minutos o menos.</p>
       </div>
-      <button id="btn-confirm-alert" class="settings-apply">Crear alerta</button>
+      <button id="btn-confirm-alert" class="settings-apply alert-dialog-confirm">
+        <svg class="alert-dialog-confirm-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Crear alerta</span>
+      </button>
     </div>
   `;
 
