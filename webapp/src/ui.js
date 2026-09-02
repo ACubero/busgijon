@@ -135,49 +135,57 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
 
         return `
         <div class="arrival-row" data-idx="${idx}">
-          <div class="arrival-badge" style="background:${color};color:${textColor}">L${a.lineId}</div>
+          <div class="arrival-badge" style="background:${color};color:${textColor};grid-row:3 / 5">L${a.lineId}</div>
           <div class="arrival-direction"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(a.direction)}</div>
-          <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
-          <button class="alert-btn" data-idx="${idx}" aria-label="Crear alerta"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
-          <div class="arrival-time-box">
+          <div class="arrival-time-box" style="grid-row:3 / 5">
             <div class="arrival-min ${timeClass}">${timeText}</div>
           </div>
-          <div class="arrival-meta-row">
+          <div class="arrival-meta-row" style="grid-row:3">
             <span class="arrival-stop-badge" style="background:${color};color:${textColor}">${a.stopId}</span>
             ${distText ? `<span class="arrival-dist">(${distText})</span>` : ""}
           </div>
-          <div class="arrival-stop-name">${fixText(a.stopName)}</div>
+          <div class="arrival-stop-name" style="grid-row:4">${fixText(a.stopName)}</div>
+          <div class="arrival-actions" style="grid-row:5">
+            <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+            <button class="alert-btn" data-idx="${idx}" aria-label="Crear alerta"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+          </div>
         </div>`;
       }
 
-      // Grupo con varias paradas para la misma línea+dirección
+      // Grupo con varias paradas para la misma línea+dirección.
+      // Cada sub-fila tiene 3 filas del grid: meta (nº parada + distancia),
+      // nombre de la parada, y debajo su par fav/alert. La fila direction
+      // va en 1, la fila vacía en 2 (alineada con el badge), y a partir de
+      // la 3 se intercalan los triplets de cada sub-parada.
       const n = group.length;
-      const items = group
-        .map((a, i) => {
-          const idx = flat.push(a) - 1;
-          const { timeClass, timeText } = timeCellFor(a);
-          const distText = distTextFor(a);
-          const isFav = favorites.has(a.stopId.toString());
-          const metaRow = 2 + i * 2;
-          const sep = i > 0 ? " arrival-group-sep" : "";
+      const itemParts = [];
+      group.forEach((a, i) => {
+        const idx = flat.push(a) - 1;
+        const { timeClass, timeText } = timeCellFor(a);
+        const distText = distTextFor(a);
+        const isFav = favorites.has(a.stopId.toString());
+        const metaRow = 3 + i * 3;
+        const sep = i > 0 ? " arrival-group-sep" : "";
 
-          return `
+        itemParts.push(`
           <div class="arrival-meta-row${sep}" style="grid-row:${metaRow}" data-idx="${idx}">
             <span class="arrival-stop-badge" style="background:${color};color:${textColor}">${a.stopId}</span>
             ${distText ? `<span class="arrival-dist">(${distText})</span>` : ""}
-            <button class="fav-btn fav-btn-inline${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
-            <button class="alert-btn alert-btn-inline" data-idx="${idx}" aria-label="Crear alerta"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           </div>
           <div class="arrival-stop-name" style="grid-row:${metaRow + 1}" data-idx="${idx}">${fixText(a.stopName)}</div>
-          <div class="arrival-time-box" style="grid-row:${metaRow} / ${metaRow + 2}" data-idx="${idx}">
+          <div class="arrival-time-box" style="grid-row:${metaRow} / ${metaRow + 3}" data-idx="${idx}">
             <div class="arrival-min ${timeClass}">${timeText}</div>
-          </div>`;
-        })
-        .join("");
+          </div>
+          <div class="arrival-actions" style="grid-row:${metaRow + 2}" data-idx="${idx}">
+            <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+            <button class="alert-btn" data-idx="${idx}" aria-label="Crear alerta"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+          </div>`);
+      });
+      const items = itemParts.join("");
 
       return `
-        <div class="arrival-row" style="grid-template-rows: auto repeat(${n * 2}, auto)">
-          <div class="arrival-badge" style="background:${color};color:${textColor};grid-row:2 / ${2 + n * 2};align-self:center">L${first.lineId}</div>
+        <div class="arrival-row" style="grid-template-rows: auto auto repeat(${n * 3}, auto)">
+          <div class="arrival-badge" style="background:${color};color:${textColor};grid-row:3 / ${3 + n * 3};align-self:center">L${first.lineId}</div>
           <div class="arrival-direction"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(first.direction)}</div>
           ${items}
         </div>`;

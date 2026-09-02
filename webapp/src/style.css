@@ -1082,7 +1082,9 @@ html.light-theme .stop-group__chip--estimation {
 .arrival-row {
   display: grid;
   grid-template-columns: auto 1fr auto auto;
-  grid-template-rows: auto auto auto;
+  /* Single parada: 5 filas (direction / vacío / badge+meta / stop / actions).
+     Multi-parada sobreescribe grid-template-rows por inline style. */
+  grid-template-rows: auto auto auto auto auto;
   column-gap: 10px;
   row-gap: 2px;
   padding: 10px 12px;
@@ -1104,7 +1106,7 @@ html.light-theme .stop-group__chip--estimation {
 }
 .arrival-badge {
   grid-column: 1;
-  grid-row: 2 / 4;
+  grid-row: 3 / 5;
   aspect-ratio: 1;
   min-width: 58px;
   display: flex;
@@ -1128,9 +1130,21 @@ html.light-theme .stop-group__chip--estimation {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   margin-bottom: 2px;
 }
+/* Fila propia de acciones (fav + alert) bajo el nombre de la parada,
+   entre la columna del badge y la del tiempo. grid-row se asigna por
+   inline style (fila 5 en single parada, metaRow+2 en multi-parada). */
+.arrival-actions {
+  grid-column: 2 / 4;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 0;
+  flex-wrap: wrap;
+}
 .arrival-meta-row {
   grid-column: 2 / 4;
-  grid-row: 2;
+  grid-row: 3;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1157,7 +1171,7 @@ html.light-theme .stop-group__chip--estimation {
 }
 .arrival-stop-name {
   grid-column: 2 / 4;
-  grid-row: 3;
+  grid-row: 4;
   align-self: center;
   font-size: 0.875rem;
   font-weight: 500;
@@ -1175,7 +1189,7 @@ html.light-theme .stop-group__chip--estimation {
 }
 .arrival-time-box {
   grid-column: 4;
-  grid-row: 2 / 4;
+  grid-row: 3 / 5;
   align-self: center;
   justify-self: center;
   text-align: center;
@@ -1202,21 +1216,25 @@ html.light-theme .stop-group__chip--estimation {
   letter-spacing: 0.3px;
 }
 
-/* Favoritos */
+/* Favoritos — ahora hijos flex de .arrival-actions, no necesitan grid placement */
 .fav-btn {
-  grid-column: 4;
-  grid-row: 1;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--accent);
-  padding: 4px;
+  padding: 8px;
   line-height: 1;
-  align-self: center;
-  justify-self: center;
-  transition: color 0.15s, transform 0.15s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  transition: color 0.15s, transform 0.15s;
+}
+.fav-btn svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 .fav-btn:hover {
   color: var(--accent-light);
@@ -1224,10 +1242,6 @@ html.light-theme .stop-group__chip--estimation {
 }
 .fav-btn.active {
   color: var(--accent);
-}
-.fav-btn-inline {
-  margin-left: auto;
-  padding: 2px;
 }
 .fav-btn.active svg path,
 .btn-icon.fav-filter-btn.active svg path {
@@ -2141,21 +2155,26 @@ html.light-theme .ai-settings-input {
    ALERTS & PUSH NOTIFICATIONS
    ========================================= */
 
-/* Bell icon button on arrival rows — sits next to the fav button */
+/* Bell icon button on arrival rows — sits next to the fav button.
+   Ahora es hijo flex de .arrival-actions, no necesita grid placement. */
 .alert-btn {
-  grid-column: 3;
-  grid-row: 1;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  padding: 4px;
+  padding: 8px;
   line-height: 1;
-  align-self: center;
-  justify-self: center;
-  transition: color 0.15s, transform 0.15s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  transition: color 0.15s, transform 0.15s;
+}
+.alert-btn svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 .alert-btn:hover {
   color: var(--accent-light);
@@ -2166,22 +2185,6 @@ html.light-theme .ai-settings-input {
 }
 .alert-btn.active svg {
   animation: bell-ring 0.5s var(--ease);
-}
-.alert-btn-inline {
-  margin-left: 2px;
-  padding: 2px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  border-radius: 50%;
-  transition: all 0.2s var(--ease);
-}
-.alert-btn-inline:hover {
-  color: var(--accent-light);
-  transform: scale(1.2);
 }
 @keyframes bell-ring {
   0%, 100% { transform: rotate(0); }
