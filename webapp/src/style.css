@@ -1168,7 +1168,7 @@ html.light-theme .stop-group__chip--estimation {
   text-overflow: ellipsis;
 }
 .arrival-stop-arrow {
-  color: var(--text-muted);
+  color: inherit;
   margin-right: 6px;
   font-weight: 700;
   user-select: none;
