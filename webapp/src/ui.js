@@ -136,7 +136,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
         return `
         <div class="arrival-row" data-idx="${idx}">
           <div class="arrival-badge" style="background:${color};color:${textColor}">L${a.lineId}</div>
-          <div class="arrival-direction">${fixText(a.direction)}</div>
+          <div class="arrival-direction"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(a.direction)}</div>
           <button class="fav-btn${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
           <button class="alert-btn" data-idx="${idx}" aria-label="Crear alerta"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           <div class="arrival-time-box">
@@ -146,7 +146,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
             <span class="arrival-stop-badge" style="background:${color};color:${textColor}">${a.stopId}</span>
             ${distText ? `<span class="arrival-dist">(${distText})</span>` : ""}
           </div>
-          <div class="arrival-stop-name"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(a.stopName)}</div>
+          <div class="arrival-stop-name">${fixText(a.stopName)}</div>
         </div>`;
       }
 
@@ -168,7 +168,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
             <button class="fav-btn fav-btn-inline${isFav ? " active" : ""}" data-stop-id="${a.stopId}" aria-label="${isFav ? "Quitar de favoritos" : "Añadir a favoritos"}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
             <button class="alert-btn alert-btn-inline" data-idx="${idx}" aria-label="Crear alerta"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           </div>
-          <div class="arrival-stop-name" style="grid-row:${metaRow + 1}" data-idx="${idx}"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(a.stopName)}</div>
+          <div class="arrival-stop-name" style="grid-row:${metaRow + 1}" data-idx="${idx}">${fixText(a.stopName)}</div>
           <div class="arrival-time-box" style="grid-row:${metaRow} / ${metaRow + 2}" data-idx="${idx}">
             <div class="arrival-min ${timeClass}">${timeText}</div>
           </div>`;
@@ -178,7 +178,7 @@ export function renderArrivals(groups, onRowClick, opts = {}) {
       return `
         <div class="arrival-row" style="grid-template-rows: auto repeat(${n * 2}, auto)">
           <div class="arrival-badge" style="background:${color};color:${textColor};grid-row:2 / ${2 + n * 2};align-self:center">L${first.lineId}</div>
-          <div class="arrival-direction">${fixText(first.direction)}</div>
+          <div class="arrival-direction"><span class="arrival-stop-arrow" aria-hidden="true">→</span>${fixText(first.direction)}</div>
           ${items}
         </div>`;
     })
