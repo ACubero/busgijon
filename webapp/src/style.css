@@ -1167,6 +1167,12 @@ html.light-theme .stop-group__chip--estimation {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.arrival-stop-arrow {
+  color: var(--text-muted);
+  margin-right: 6px;
+  font-weight: 700;
+  user-select: none;
+}
 .arrival-time-box {
   grid-column: 4;
   grid-row: 2 / 4;
