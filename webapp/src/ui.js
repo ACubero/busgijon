@@ -51,6 +51,26 @@ function getTextColor(hexColor) {
 }
 
 /**
+ * Devuelve una cadena tipo "hace 5 min", "hace 2 h" o "hace 3 días"
+ * para una fecha ISO dada. Si la fecha no es parseable devuelve "" para
+ * que el llamador pueda omitir el bloque sin inventar datos.
+ */
+function formatRelativeTime(isoString) {
+  if (!isoString) return "";
+  const then = new Date(isoString);
+  if (Number.isNaN(then.getTime())) return "";
+  const diffMs = Date.now() - then.getTime();
+  // Si por reloj del cliente la fecha queda en el futuro, lo tratamos como "ahora"
+  if (diffMs < 0) return "hace 0 min";
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} días`;
+}
+
+/**
  * Agrupa llegadas por línea+dirección, preservando el orden relativo
  * (ya ordenado por tiempo/distancia) dentro de cada grupo.
  */
@@ -511,7 +531,17 @@ export function showAlertDialog(arrival, onConfirm) {
 /**
  * Renderizar la lista de alertas activas en la página de ajustes.
  *
- * @param {Array} alerts - Lista de alertas [{ id, lineId, direction, stopName, stopId, thresholdMinutes, status }]
+ * Estructura de cada tarjeta:
+ *   - Badge cuadrado grande con el número de línea (mismo lenguaje que .arrival-badge)
+ *   - Bloque info: destino (prominente), nombre completo de la línea (si existe),
+ *     parada (#id · nombre en una sola línea discreta), y tiempo desde creación.
+ *   - Chip de umbral "N min" (horizontal, pequeño, no compite con el destino).
+ *   - Botón ✕ para eliminar.
+ *
+ * Los campos `lineName` y `createdAt` son opcionales — si no vienen, los bloques
+ * correspondientes no se renderizan (ver `formatRelativeTime` para fechas inválidas).
+ *
+ * @param {Array} alerts - Lista de alertas [{ id, lineId, lineName, direction, stopName, stopId, thresholdMinutes, status, createdAt }]
  * @param {Function} onDelete - Callback(alertId) para eliminar
  */
 export function renderAlertsList(alerts, onDelete) {
@@ -527,20 +557,27 @@ export function renderAlertsList(alerts, onDelete) {
     .map((alert) => {
       const color = getLineColor(alert.lineId);
       const textColor = getTextColor(color);
+      // Bloques opcionales: solo se renderizan si el dato está presente
+      const lineNameBlock = alert.lineName
+        ? `<div class="alert-item-line-name">${fixText(alert.lineName)}</div>`
+        : "";
+      const relativeTime = formatRelativeTime(alert.createdAt);
+      const metaBlock = relativeTime
+        ? `<div class="alert-item-meta">Creada ${relativeTime}</div>`
+        : "";
       return `
       <div class="alert-item" data-alert-id="${alert.id}">
         <div class="alert-item-badge" style="background:${color};color:${textColor}">L${alert.lineId}</div>
         <div class="alert-item-info">
           <div class="alert-item-direction">${fixText(alert.direction)}</div>
-          <div class="alert-item-stop">
-            <span class="alert-item-stop-id" style="background:${color};color:${textColor}">${alert.stopId}</span>
+          ${lineNameBlock}
+          <div class="alert-item-stop-row">
+            <span class="alert-item-stop-id" style="background:${color};color:${textColor};border:1px solid ${textColor}">${alert.stopId}</span>
             <span class="alert-item-stop-name">${fixText(alert.stopName)}</span>
           </div>
+          ${metaBlock}
         </div>
-        <div class="alert-item-threshold">
-          <div class="alert-item-threshold-value">${alert.thresholdMinutes}</div>
-          <div class="alert-item-threshold-label">min</div>
-        </div>
+        <div class="alert-item-threshold">${alert.thresholdMinutes} min</div>
         <button class="alert-item-delete" data-alert-id="${alert.id}" aria-label="Eliminar alerta">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
