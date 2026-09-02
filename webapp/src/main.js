@@ -17,7 +17,7 @@ import {
   getRouteStops,
 } from "./api.js";
 
-import { getUserLocation, getNearbyStops } from "./geo.js";
+import { getUserLocation, getNearbyStops, watchUserLocation, getDistance } from "./geo.js";
 import {
   initMap,
   setUserMarker,
@@ -45,6 +45,7 @@ import {
   updateStopsStopInfo,
   flashStopsStopInfo,
   renderStopsArrivals,
+  showAutoLocateToast,
 } from "./ui.js";
 
 import {
@@ -147,6 +148,24 @@ async function init() {
     );
 
     setStopMarkers(state.nearbyStops, handleStopClick);
+
+    // Tracking continuo para auto-seguimiento de la parada más cercana (feature
+    // "siempre sé dónde estoy"). Solo se activa si la preferencia está activa
+    // (por defecto sí) y la pestaña Paradas la usará.
+    const autoLocateEnabled = localStorage.getItem("bus_auto_locate") !== "0";
+    if (autoLocateEnabled && navigator.geolocation) {
+      state._stopLocationWatch = watchUserLocation((coords) => {
+        state.userLocation = coords;
+        // Re-evaluar la pestaña Paradas si está activa
+        if (state.view === "stops") {
+          maybeAutoSelectNearestStop();
+        }
+        // Si hay mapa abierto, también mover el marker (mejor UX)
+        if (state.view === "map" && typeof setUserMarker === "function") {
+          setUserMarker(coords.lat, coords.lng);
+        }
+      });
+    }
 
     hideSplash();
     setupEvents();
@@ -995,6 +1014,19 @@ function setupSettings() {
     updateRangeLabel(RADIUS_STEPS[parseInt(range.value)], valueLabel);
   });
 
+  // Toggle seguimiento automático de parada. Se persiste al vuelo (no necesita
+  // "Aplicar y recargar"). Por defecto activo; se desactiva con valor "0".
+  const autoLocateCheckbox = document.getElementById("setting-auto-locate");
+  if (autoLocateCheckbox) {
+    autoLocateCheckbox.checked = localStorage.getItem("bus_auto_locate") !== "0";
+    autoLocateCheckbox.addEventListener("change", () => {
+      localStorage.setItem(
+        "bus_auto_locate",
+        autoLocateCheckbox.checked ? "1" : "0",
+      );
+    });
+  }
+
   // Toggle tema mapa
   const themeBtns = settingsPage.querySelectorAll(".settings-toggle-btn[data-theme]");
   themeBtns.forEach((btn) => {
@@ -1514,6 +1546,67 @@ function persistSelectedStop(stopId) {
   } catch (e) {
     console.warn("[Stops] No se pudo persistir la selección:", e);
   }
+}
+
+/**
+ * Re-evalúa si la parada seleccionada es la más cercana al usuario.
+ * Si hay otra parada significativamente más cerca, la selecciona automáticamente
+ * y muestra un toast informativo.
+ *
+ * Reglas (para evitar saltos innecesarios por ruido GPS):
+ *  - Solo actúa si state.view === "stops" y hay parada seleccionada
+ *  - Solo si la nueva candidata está a < 200m del usuario
+ *  - Solo si la parada actual está a > 500m del usuario (evita cambiar si
+ *    ya estoy "razonablemente" cerca de la seleccionada)
+ *  - Solo si el id de la candidata es DIFERENTE del id seleccionado
+ */
+function maybeAutoSelectNearestStop() {
+  if (state.view !== "stops") return;
+  if (!state.stops.selectedStopId || !state.userLocation) return;
+  if (!Array.isArray(state.allStops) || state.allStops.length === 0) return;
+
+  const userLat = state.userLocation.lat;
+  const userLng = state.userLocation.lng;
+
+  // Distancia a la parada actual
+  const currentStop = state.allStops.find(
+    (s) => String(s.idparada) === String(state.stops.selectedStopId),
+  );
+  if (!currentStop) return;
+  const currentDist = getDistance(
+    userLat, userLng,
+    parseFloat(currentStop.latitud), parseFloat(currentStop.longitud),
+  );
+
+  // Buscar la más cercana (radio 5 km para tener un buen pool, luego filtrar)
+  const candidates = state.allStops
+    .map((s) => ({
+      stop: s,
+      distance: getDistance(
+        userLat, userLng,
+        parseFloat(s.latitud), parseFloat(s.longitud),
+      ),
+    }))
+    .filter((c) => Number.isFinite(c.distance) && c.distance < 5000)
+    .sort((a, b) => a.distance - b.distance);
+
+  if (candidates.length === 0) return;
+  const nearest = candidates[0];
+
+  // Reglas de cambio
+  if (String(nearest.stop.idparada) === String(state.stops.selectedStopId)) return;
+  if (nearest.distance >= 200) return;
+  if (currentDist <= 500) return;
+
+  // Cambiar
+  const newId = String(nearest.stop.idparada);
+  const newName = nearest.stop.descripcion || `Parada #${newId}`;
+
+  // Llamar a selectStop (de T4) — actualiza estado, input, localStorage
+  selectStop(nearest.stop);
+
+  // Mostrar toast (3 segundos)
+  showAutoLocateToast(`Ahora en Parada #${newId} — ${newName}`, 3000);
 }
 
 /**

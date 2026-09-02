@@ -2394,6 +2394,35 @@ html.light-theme .ai-settings-input {
   border-color: var(--accent);
 }
 
+/* Auto-locate toast — notificación breve cuando la app cambia sola de parada
+   por tracking GPS. Aparece encima del bottom-nav. */
+.auto-locate-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height) + 16px);
+  transform: translateX(-50%) translateY(20px);
+  background: var(--accent);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 700;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  max-width: 90%;
+  text-align: center;
+}
+.auto-locate-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .auto-locate-toast { transition: none; }
+}
+
 /* Alert list container — lista de tarjetas de alertas activas */
 .alerts-list-container {
   display: flex;

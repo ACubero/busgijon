@@ -719,6 +719,37 @@ export function flashStopsStopInfo(msg, durationMs = 3000) {
   }, durationMs);
 }
 
+/**
+ * Muestra un toast breve (no modal, no bloqueante) con un mensaje.
+ * Se posiciona arriba del bottom-nav, no del header, para no chocar con
+ * la cabecera de la app. Se cierra automáticamente tras `durationMs`.
+ *
+ * @param {string} msg - Mensaje a mostrar (escapeado).
+ * @param {number} [durationMs=3000] - Duración en ms.
+ */
+export function showAutoLocateToast(msg, durationMs = 3000) {
+  // Quitar toast previo si existe (evitar acumulación)
+  const existing = document.getElementById("auto-locate-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "auto-locate-toast";
+  toast.className = "auto-locate-toast";
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-live", "polite");
+  toast.textContent = msg; // textContent = XSS-safe
+  document.body.appendChild(toast);
+
+  // Forzar reflow antes de añadir clase para que la animación CSS funcione
+  void toast.offsetHeight;
+  toast.classList.add("auto-locate-toast--visible");
+
+  setTimeout(() => {
+    toast.classList.remove("auto-locate-toast--visible");
+    setTimeout(() => toast.remove(), 300); // deja que termine la animación
+  }, durationMs);
+}
+
 // ============================================
 // Vista Paradas — Render de llegadas agrupadas por línea (T5)
 // ============================================

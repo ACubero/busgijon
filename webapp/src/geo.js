@@ -42,6 +42,60 @@ export function getUserLocation() {
 }
 
 /**
+ * Vigila la posición del usuario continuamente y llama a `onUpdate(coords)`
+ * cada vez que cambia (con throttling por distancia para no spamear).
+ *
+ * @param {(coords: {lat:number, lng:number}) => void} onUpdate
+ * @param {object} [options]
+ * @param {number} [options.minDistanceM=20] - Distancia mínima (m) entre
+ *   updates para considerar que el usuario se "ha movido". Evita spam de
+ *   actualizaciones GPS con variaciones de < 20m.
+ * @param {number} [options.maxAge=60000] - Máxima edad (ms) de una lectura
+ *   cacheada que el navegador puede devolver. Compromiso entre batería y
+ *   precisión.
+ * @returns {() => void} Función para detener el watch (cleanup).
+ *
+ * Comportamiento:
+ * - Si navigator.geolocation no está disponible → no hace nada, devuelve noop
+ * - Si el watch falla o el usuario revoca el permiso → console.warn, no rompe
+ * - No llama a onUpdate si la nueva posición está a < minDistanceM de la última
+ * - La primera llamada a onUpdate es inmediata (con la primera lectura válida)
+ */
+export function watchUserLocation(onUpdate, options = {}) {
+  const { minDistanceM = 20, maxAge = 60000 } = options;
+  if (!navigator.geolocation) {
+    console.warn("[geo] watchUserLocation: geolocalización no soportada");
+    return () => {};
+  }
+  let lastCoords = null;
+  let stopped = false;
+  const id = navigator.geolocation.watchPosition(
+    (pos) => {
+      if (stopped) return;
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (lastCoords) {
+        const d = getDistance(lastCoords.lat, lastCoords.lng, coords.lat, coords.lng);
+        if (d < minDistanceM) return; // No se ha movido lo suficiente
+      }
+      lastCoords = coords;
+      try {
+        onUpdate(coords);
+      } catch (e) {
+        console.warn("[geo] Error en onUpdate:", e);
+      }
+    },
+    (err) => {
+      console.warn("[geo] watchUserLocation error:", err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: maxAge, timeout: 15000 },
+  );
+  return () => {
+    stopped = true;
+    if (id != null) navigator.geolocation.clearWatch(id);
+  };
+}
+
+/**
  * Calcular distancia entre dos puntos (Haversine) en metros
  */
 export function getDistance(lat1, lng1, lat2, lng2) {
