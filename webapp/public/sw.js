@@ -7,7 +7,7 @@
  *   - Auth (login)      → Sin caché
  */
 
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const STATIC_CACHE  = `busgijon-static-${CACHE_VERSION}`;
 const API_CACHE     = `busgijon-api-${CACHE_VERSION}`;
 
