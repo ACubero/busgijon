@@ -569,7 +569,10 @@ export function renderAlertsList(alerts, onDelete) {
       <div class="alert-item" data-alert-id="${alert.id}">
         <div class="alert-item-badge" style="background:${color};color:${textColor}">L${alert.lineId}</div>
         <div class="alert-item-info">
-          <div class="alert-item-direction">${fixText(alert.direction)}</div>
+          <div class="alert-item-header">
+            <div class="alert-item-direction">${fixText(alert.direction)}</div>
+            <span class="alert-item-threshold">${alert.thresholdMinutes} min</span>
+          </div>
           ${lineNameBlock}
           <div class="alert-item-stop-row">
             <span class="alert-item-stop-id" style="background:${color};color:${textColor};border:1px solid ${textColor}">${alert.stopId}</span>
@@ -577,7 +580,6 @@ export function renderAlertsList(alerts, onDelete) {
           </div>
           ${metaBlock}
         </div>
-        <div class="alert-item-threshold">${alert.thresholdMinutes} min</div>
         <button class="alert-item-delete" data-alert-id="${alert.id}" aria-label="Eliminar alerta">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>

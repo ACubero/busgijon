@@ -2499,7 +2499,7 @@ html.light-theme .ai-settings-input {
    haga wrap en 2 líneas si el nombre es largo (sin truncar con elipsis). */
 .alert-item {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto;
   align-items: start;
   gap: 12px;
   padding: 14px;
@@ -2539,6 +2539,15 @@ html.light-theme .ai-settings-input {
   flex-direction: column;
   gap: 2px;
 }
+/* Cabecera de la info: destino + chip "N min" en la misma línea.
+   El chip queda arriba a la derecha del destino. Si el destino
+   ocupa 2 líneas, el chip se queda alineado con la primera línea. */
+.alert-item-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
 .alert-item-direction {
   font-size: 0.9rem;
   font-weight: 600;
@@ -2547,6 +2556,8 @@ html.light-theme .ai-settings-input {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.3;
+  flex: 1;
+  min-width: 0;
 }
 .alert-item-line-name {
   font-size: 0.78rem;
@@ -2590,19 +2601,21 @@ html.light-theme .ai-settings-input {
   font-weight: 500;
 }
 
-/* Umbral: chip horizontal compacto, no compite con el destino */
+/* Umbral: chip compacto "N min" inline junto al destino.
+   No compite con el destino porque está en la misma línea. */
 .alert-item-threshold {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   background: rgba(230, 57, 70, 0.12);
   color: var(--accent);
   border-radius: 12px;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  align-self: flex-start;
   white-space: nowrap;
+  line-height: 1;
 }
 
 /* Botón eliminar discreto, se intensifica en hover */
@@ -2628,16 +2641,12 @@ html.light-theme .ai-settings-input {
   transform: scale(0.92);
 }
 
-/* Responsive: en pantallas estrechas el chip de umbral baja a una segunda fila */
+/* Responsive: en pantallas estrechas ajustamos el padding de la tarjeta.
+   El chip de umbral ya está inline con el destino, no necesita bajar de fila. */
 @media (max-width: 380px) {
   .alert-item {
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: auto auto;
-  }
-  .alert-item-threshold {
-    grid-column: 2 / 3;
-    grid-row: 2 / 3;
-    justify-self: start;
+    padding: 12px;
+    gap: 10px;
   }
 }
 
