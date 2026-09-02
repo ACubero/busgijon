@@ -6,10 +6,21 @@
 const GIJON_CENTER = { lat: 43.5322, lng: -5.6611 };
 
 /**
- * Obtener la posición actual del usuario
+ * Obtener la posición actual del usuario.
+ *
+ * Por defecto usa `maximumAge: 60000` (1 min de caché del navegador) para
+ * evitar lecturas GPS innecesarias en llamadas frecuentes. Pasar `force: true`
+ * para saltarse esa caché y forzar una lectura nueva — útil cuando la app
+ * vuelve a primer plano y el usuario puede haberse movido.
+ *
+ * @param {object} [options]
+ * @param {boolean} [options.force=false] - Si true, ignora la caché del
+ *   navegador (`maximumAge: 0`) y fuerza una nueva lectura GPS.
+ * @param {number} [options.timeout=8000] - Timeout (ms) para la lectura.
  * @returns {Promise<{lat: number, lng: number}>}
  */
-export function getUserLocation() {
+export function getUserLocation(options = {}) {
+  const { force = false, timeout = 8000 } = options;
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       console.warn("Geolocalización no soportada, usando centro de Gijón");
@@ -34,8 +45,8 @@ export function getUserLocation() {
       },
       {
         enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60000,
+        timeout,
+        maximumAge: force ? 0 : 60000,
       },
     );
   });

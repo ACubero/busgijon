@@ -382,6 +382,92 @@ async function loadLinesDetail() {
 // Auto-refresco
 // ============================================
 
+/**
+ * Vuelve a pedir la ubicación al usuario y, si cambia, actualiza el estado
+ * y las vistas que dependen de ella (marker en mapa, pestaña Paradas).
+ *
+ * Por qué existe: la app recibía `state.userLocation` UNA vez en `init()` y
+ * lo dejaba fijo. Si el usuario salía de la app y volvía (sin cerrar el
+ * proceso, como hacen las PWA en iOS/Android), la app seguía mostrando la
+ * ubicación VIEJA del primer arranque y lejanaMaps-app para "reubicarse".
+ *
+ * Reglas:
+ *  - `force = false` (uso normal en cada tick del auto-refresco): respeta la
+ *    caché de 60s del navegador. Con permiso ya concedido NO muestra prompt.
+ *  - `force = true` (al volver de background): salta la caché (`maximumAge: 0`).
+ *  - Si falla, mantenemos la última ubicación conocida (no rompemos UX).
+ *  - Si la app no soporta geolocalización, salimos silenciosamente.
+ *
+ * @param {boolean} [force=false] - Si true, fuerza lectura GPS nueva.
+ * @returns {Promise<void>}
+ */
+async function refreshUserLocation(force = false) {
+  if (!navigator.geolocation) return;
+  try {
+    const coords = await getUserLocation({ force, timeout: 5000 });
+    if (coords) {
+      state.userLocation = coords;
+      // Mover el marker del usuario si el mapa está abierto
+      if (state.view === "map" && typeof setUserMarker === "function") {
+        setUserMarker(coords.lat, coords.lng);
+      }
+      // Re-evaluar pestaña Paradas si está activa
+      if (state.view === "stops" && typeof maybeAutoSelectNearestStop === "function") {
+        maybeAutoSelectNearestStop();
+      }
+    }
+  } catch (e) {
+    console.warn("[geo] refreshUserLocation falló:", e?.message || e);
+  }
+}
+
+/**
+ * Maneja el ciclo de vida de la app (background/foreground).
+ *  - Al pasar a background: pausa el watch continuo para ahorrar batería.
+ *  - Al volver a primer plano: fuerza una lectura GPS nueva, recarga
+ *    llegadas/buses/paradas y reanuda el watch continuo si la preferencia
+ *    `bus_auto_locate` está activa.
+ */
+function setupVisibilityHandlers() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      // App vuelve a primer plano: el usuario puede haberse movido mientras
+      // estaba en background. Forzamos lectura GPS (saltando la caché de
+      // 60s) y refrescamos todas las vistas que dependen de la ubicación.
+      refreshUserLocation(true).then(() => {
+        if (state.refreshPaused) return;
+        loadAllArrivals();
+        loadBusPositions();
+        if (typeof refreshStopsView === "function") refreshStopsView();
+      });
+      // Reanudar el watch continuo si la preferencia está activa y NO hay
+      // uno ya en marcha (evita doble watch en visibilitychange disparado
+      // dos veces seguidas).
+      const autoLocateEnabled = localStorage.getItem("bus_auto_locate") !== "0";
+      if (autoLocateEnabled && navigator.geolocation && !state._stopLocationWatch) {
+        state._stopLocationWatch = watchUserLocation((coords) => {
+          state.userLocation = coords;
+          if (state.view === "stops") maybeAutoSelectNearestStop();
+          if (state.view === "map" && typeof setUserMarker === "function") {
+            setUserMarker(coords.lat, coords.lng);
+          }
+        });
+      }
+    } else if (document.visibilityState === "hidden") {
+      // App va a background: pausar el watch continuo para ahorrar batería.
+      // Se reanudará cuando vuelva a ser visible (ver bloque anterior).
+      if (state._stopLocationWatch) {
+        try {
+          state._stopLocationWatch();
+        } catch (e) {
+          /* noop */
+        }
+        state._stopLocationWatch = null; // importante: SIEMPRE null para evitar doble watch al volver
+      }
+    }
+  });
+}
+
 function startAutoRefresh() {
   stopAutoRefresh();
   if (state.refreshPaused) return;
@@ -393,12 +479,18 @@ function startAutoRefresh() {
     updateRefreshBadge(seconds, false);
     if (seconds <= 0) {
       seconds = state.refreshSeconds;
-      loadAllArrivals();
-      loadBusPositions();
-      // T6 — refresca también la vista Paradas cuando proceda. La función
-      // ya comprueba internamente si estamos en la vista y hay selección,
-      // así que aquí no añadimos más condicionales.
-      refreshStopsView();
+      // PRIMERO refrescamos la ubicación (caché 60s, no fuerza prompt) y
+      // DESPUÉS cargamos llegadas/buses/paradas. Sin force=true para no ser
+      // agresivos con el GPS en cada tick: el navegador reutiliza la lectura
+      // reciente (≤60s) y, con permiso ya concedido, no muestra prompt.
+      refreshUserLocation(false).then(() => {
+        loadAllArrivals();
+        loadBusPositions();
+        // T6 — refresca también la vista Paradas cuando proceda. La función
+        // ya comprueba internamente si estamos en la vista y hay selección,
+        // así que aquí no añadimos más condicionales.
+        refreshStopsView();
+      });
     }
   }, 1000);
 }
@@ -921,6 +1013,8 @@ function setupEvents() {
   setupPullToRefresh();
   setupAlertsUI();
   setupStopsSelector();
+  // Ciclo de vida: refresca la ubicación cuando la app vuelve a primer plano.
+  setupVisibilityHandlers();
 
   window.addEventListener("resize", () => {
     invalidateMapSize();
