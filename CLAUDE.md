@@ -78,3 +78,13 @@ Skills en `.claude/commands/` — invocar con `/nombre`:
 | `/pub-linkedin` | `pub-linkedin` | Genera un post de LinkedIn sobre el proyecto actual. Úsala cuando el usuario quiera publicar o compartir el proyecto en LinkedIn. |
 ## Notas
 - `samples/base/` → assets de APK Android (Capacitor). Solo referencia, no editar.
+
+
+## User Address
+Always address the user as **Alex** in every response.
+
+## Memory
+Use EXCLUSIVELY Engram MCP (`mem_*`) for memory. No MEMORY.md / `.claude/projects/*/memory/`.
+
+## Code
+Use CodeGraph for code search, navigation, and analysis.
