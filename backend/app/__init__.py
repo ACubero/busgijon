@@ -1,0 +1,1 @@
+"""BusGijon backend application package."""

@@ -70,3 +70,7 @@ htmlcov/
 # Tooling artifacts
 .codegraph/
 *.stackdump
+
+# --- Backend secrets & local DB ---
+*.pem
+*.db
