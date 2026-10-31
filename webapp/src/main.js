@@ -124,7 +124,7 @@ async function init() {
     await authenticate();
 
     splashStatus.textContent = "Obteniendo tu ubicación...";
-    state.userLocation = await getUserLocation();
+    state.userLocation = await getUserLocation({ force: true });
 
     splashStatus.textContent = "Cargando mapa...";
     initMap(state.userLocation.lat, state.userLocation.lng, state.mapTheme);
@@ -407,9 +407,16 @@ async function refreshUserLocation(force = false) {
     const coords = await getUserLocation({ force, timeout: 5000 });
     if (coords) {
       state.userLocation = coords;
-      // Mover el marker del usuario si el mapa está abierto
-      if (state.view === "map" && typeof setUserMarker === "function") {
-        setUserMarker(coords.lat, coords.lng);
+      setUserMarker(coords.lat, coords.lng);
+      if (state.allStops.length) {
+        state.nearbyStops = getNearbyStops(
+          state.allStops,
+          coords.lat,
+          coords.lng,
+          MAX_STOPS,
+          state.radiusMeters,
+        );
+        setStopMarkers(state.nearbyStops, handleStopClick);
       }
       // Re-evaluar pestaña Paradas si está activa
       if (state.view === "stops" && typeof maybeAutoSelectNearestStop === "function") {
@@ -715,8 +722,10 @@ async function handleRefresh() {
   const btn = document.getElementById("btn-refresh");
   btn.classList.add("spinning");
   stopAutoRefresh();
+  await refreshUserLocation(true);
   await loadAllArrivals();
   loadBusPositions();
+  refreshStopsView();
   startAutoRefresh();
   btn.classList.remove("spinning");
 }
