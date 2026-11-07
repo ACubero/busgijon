@@ -15,6 +15,7 @@ import {
   getStopLines,
   getLineDetail,
   getRouteStops,
+  getLinePdfUrl,
 } from "./api.js";
 
 import { getUserLocation, getNearbyStops, watchUserLocation, getDistance } from "./geo.js";
@@ -2160,6 +2161,7 @@ function setupScheduleUI() {
   const sGroup = document.getElementById("schedule-step-3");
   const resultsDiv = document.getElementById("schedule-results");
   const listDiv = document.getElementById("schedule-list");
+  const pdfLink = document.getElementById("schedule-line-pdf");
 
   let currentLine = null;
   let currentRoute = null;
@@ -2209,6 +2211,14 @@ function setupScheduleUI() {
     lGroup.classList.add("hidden");
     sGroup.classList.add("hidden");
     resultsDiv.classList.add("hidden");
+
+    const code = state.allLines.find((l) => String(l.idlinea) === lineId)?.codigo;
+    const pdfUrl = getLinePdfUrl(code);
+    pdfLink.classList.toggle("hidden", !pdfUrl);
+    if (pdfUrl) {
+      pdfLink.href = pdfUrl;
+      pdfLink.textContent = `Ver recorrido y horarios oficiales L${String(code).trim()} (PDF)`;
+    }
 
     if (!lineId) return;
 

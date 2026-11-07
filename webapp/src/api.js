@@ -199,30 +199,44 @@ export async function getAllLines() {
  * con los del resto de días (p. ej. prolongaciones de laborables) sondeando
  * `trayectos/trayectos/:linea/:id`. Los añadidos llevan `noCirculaHoy: true`.
  */
+// Los ids de trayecto no empiezan siempre en 1 (L16: 50–58; L71: 11–13), así
+// que se sondea todo el rango 1..max(id de hoy, MIN) y se sigue mientras
+// aparezcan trayectos en los últimos ROUTE_PROBE_GAP ids.
 const allRoutesCache = new Map();
-const ROUTE_PROBE_BATCH = 5;
-const ROUTE_PROBE_MAX_GAP = 5;
-const ROUTE_PROBE_MAX_ID = 60;
+const ROUTE_PROBE_BATCH = 8;
+const ROUTE_PROBE_GAP = 8;
+const ROUTE_PROBE_MIN = 24;
+const ROUTE_PROBE_MAX_ID = 200;
 
-async function discoverAllRoutes(lineId) {
+async function discoverAllRoutes(lineId, knownIds = []) {
   if (allRoutesCache.has(lineId)) return allRoutesCache.get(lineId);
   const found = [];
-  let gap = 0;
-  for (let start = 1; start <= ROUTE_PROBE_MAX_ID && gap < ROUTE_PROBE_MAX_GAP; start += ROUTE_PROBE_BATCH) {
+  let limit = Math.max(ROUTE_PROBE_MIN, ...knownIds) + ROUTE_PROBE_GAP;
+  for (let start = 1; start <= limit && start <= ROUTE_PROBE_MAX_ID; start += ROUTE_PROBE_BATCH) {
     const ids = Array.from({ length: ROUTE_PROBE_BATCH }, (_, i) => start + i);
     const results = await Promise.allSettled(ids.map((id) => getRouteStops(lineId, id)));
-    for (const r of results) {
+    results.forEach((r, i) => {
       const route = r.status === "fulfilled" ? r.value : null;
       if (route?.idtrayecto && Array.isArray(route.paradas) && route.paradas.length) {
         found.push(route);
-        gap = 0;
-      } else {
-        gap++;
+        limit = Math.max(limit, ids[i] + ROUTE_PROBE_GAP);
       }
-    }
+    });
   }
   allRoutesCache.set(lineId, found);
   return found;
+}
+
+/** URL del PDF oficial (recorrido y horarios) de una línea, o null si no hay. */
+const LINE_PDF_CODES = new Set([
+  "1", "2", "4", "6", "10", "12", "14", "15", "16", "18", "20", "24", "25", "26",
+  "34", "35", "36", "71", "B1", "B2", "B3", "B4", "B5", "B6",
+]);
+export function getLinePdfUrl(code) {
+  const c = String(code ?? "").trim().toUpperCase();
+  return LINE_PDF_CODES.has(c)
+    ? `https://documentos.gijon.es/doc/LineasBus/l${c.toLowerCase()}.pdf`
+    : null;
 }
 
 export async function getLineDetail(lineId) {
@@ -231,7 +245,8 @@ export async function getLineDetail(lineId) {
   const today = Array.isArray(detail.trayectos) ? detail.trayectos : [];
   try {
     const todayIds = new Set(today.map((t) => String(t.idtrayecto)));
-    const extra = (await discoverAllRoutes(lineId))
+    const knownIds = today.map((t) => Number(t.idtrayecto)).filter(Number.isFinite);
+    const extra = (await discoverAllRoutes(lineId, knownIds))
       .filter((t) => !todayIds.has(String(t.idtrayecto)))
       .map(({ paradas, ...t }) => ({ ...t, expediciones: [], noCirculaHoy: true }));
     detail.trayectos = [...today, ...extra].sort((a, b) => a.idtrayecto - b.idtrayecto);
