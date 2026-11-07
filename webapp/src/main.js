@@ -2223,7 +2223,7 @@ function setupScheduleUI() {
       trayectos.forEach((t) => {
         const opt = document.createElement("option");
         opt.value = t.idtrayecto;
-        opt.textContent = t.descripcion || t.destino;
+        opt.textContent = (t.descripcion || t.destino) + (t.noCirculaHoy ? " (no circula hoy)" : "");
         rSelect.appendChild(opt);
       });
     } catch (err) {

@@ -193,10 +193,52 @@ export async function getAllLines() {
   return linesCache;
 }
 
-/** Obtener detalle de una línea */
+/**
+ * Obtener detalle de una línea.
+ * `lineas/lineas/:id` solo lista los trayectos que circulan hoy; se completan
+ * con los del resto de días (p. ej. prolongaciones de laborables) sondeando
+ * `trayectos/trayectos/:linea/:id`. Los añadidos llevan `noCirculaHoy: true`.
+ */
+const allRoutesCache = new Map();
+const ROUTE_PROBE_BATCH = 5;
+const ROUTE_PROBE_MAX_GAP = 5;
+const ROUTE_PROBE_MAX_ID = 60;
+
+async function discoverAllRoutes(lineId) {
+  if (allRoutesCache.has(lineId)) return allRoutesCache.get(lineId);
+  const found = [];
+  let gap = 0;
+  for (let start = 1; start <= ROUTE_PROBE_MAX_ID && gap < ROUTE_PROBE_MAX_GAP; start += ROUTE_PROBE_BATCH) {
+    const ids = Array.from({ length: ROUTE_PROBE_BATCH }, (_, i) => start + i);
+    const results = await Promise.allSettled(ids.map((id) => getRouteStops(lineId, id)));
+    for (const r of results) {
+      const route = r.status === "fulfilled" ? r.value : null;
+      if (route?.idtrayecto && Array.isArray(route.paradas) && route.paradas.length) {
+        found.push(route);
+        gap = 0;
+      } else {
+        gap++;
+      }
+    }
+  }
+  allRoutesCache.set(lineId, found);
+  return found;
+}
+
 export async function getLineDetail(lineId) {
   const data = await apiGet(`lineas/lineas/${lineId}`);
-  return data["0"] || data;
+  const detail = data["0"] || data;
+  const today = Array.isArray(detail.trayectos) ? detail.trayectos : [];
+  try {
+    const todayIds = new Set(today.map((t) => String(t.idtrayecto)));
+    const extra = (await discoverAllRoutes(lineId))
+      .filter((t) => !todayIds.has(String(t.idtrayecto)))
+      .map(({ paradas, ...t }) => ({ ...t, expediciones: [], noCirculaHoy: true }));
+    detail.trayectos = [...today, ...extra].sort((a, b) => a.idtrayecto - b.idtrayecto);
+  } catch (e) {
+    console.warn("[API] No se pudieron descubrir todos los trayectos", e);
+  }
+  return detail;
 }
 
 /** Obtener paradas de un trayecto */
