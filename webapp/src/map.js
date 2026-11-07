@@ -4,6 +4,7 @@
 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet-rotate";
 
 let map = null;
 let userMarker = null;
@@ -81,6 +82,11 @@ export function initMap(lat, lng, theme = "dark") {
     zoom: 16,
     zoomControl: true,
     attributionControl: false,
+    rotate: true,
+    bearing: 0,
+    touchRotate: true,
+    shiftKeyRotate: true,
+    rotateControl: { closeOnZeroBearing: false, position: "topleft" },
   });
 
   tileLayer = L.tileLayer(TILE_URL, {

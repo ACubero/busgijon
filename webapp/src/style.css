@@ -286,6 +286,19 @@ body {
 }
 
 /* Leaflet overrides */
+.leaflet-control-rotate {
+  border: none !important;
+}
+.leaflet-control-rotate a {
+  background-color: var(--bg-glass) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+html.light-theme .leaflet-control-rotate a {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
 .leaflet-control-zoom {
   border: none !important;
 }
