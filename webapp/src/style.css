@@ -2692,3 +2692,7 @@ html.light-theme .alert-item {
 html.light-theme .toast {
   border-color: rgba(0, 0, 0, 0.1);
 }
+
+html:not(.light-theme) .osm-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.6);
+}

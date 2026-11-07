@@ -72,11 +72,7 @@ function getLuminance(hexColor) {
 
 let tileLayer = null;
 
-const TILE_URLS = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  light:
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-};
+const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 export function initMap(lat, lng, theme = "dark") {
   document.documentElement.classList.toggle("light-theme", theme === "light");
@@ -87,15 +83,15 @@ export function initMap(lat, lng, theme = "dark") {
     attributionControl: false,
   });
 
-  tileLayer = L.tileLayer(TILE_URLS[theme] || TILE_URLS.dark, {
+  tileLayer = L.tileLayer(TILE_URL, {
     maxZoom: 19,
-    subdomains: "abcd",
+    className: "osm-tiles",
   }).addTo(map);
 
   L.control
     .attribution({ prefix: false, position: "bottomleft" })
     .addAttribution(
-      '© <a href="https://carto.com/">CARTO</a> · <a href="https://www.openstreetmap.org/">OSM</a>',
+      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     )
     .addTo(map);
 
@@ -110,8 +106,6 @@ export function initMap(lat, lng, theme = "dark") {
  */
 export function setMapTheme(theme) {
   if (!map || !tileLayer) return;
-  const url = TILE_URLS[theme] || TILE_URLS.dark;
-  tileLayer.setUrl(url);
   document.documentElement.classList.toggle("light-theme", theme === "light");
 }
 
