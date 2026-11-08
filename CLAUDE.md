@@ -78,6 +78,11 @@ Skills en `.claude/commands/` — invocar con `/nombre`:
 | Invocación | Nombre | Descripción |
 |-----------|--------|-------------|
 | `/pub-linkedin` | `pub-linkedin` | Genera un post de LinkedIn sobre el proyecto actual. Úsala cuando el usuario quiera publicar o compartir el proyecto en LinkedIn. |
+## Despliegue
+- Repo: `/home/hermes/claude/busgijon`
+- Backend: systemd `busgijon-backend` (uvicorn `backend/.venv`, 127.0.0.1:8000)
+- Deploy: `~/scripts/busgijon-deploy/busgijon-deploy.sh`
+
 ## Notas
 - `samples/base/` → assets de APK Android (Capacitor). Solo referencia, no editar.
 
