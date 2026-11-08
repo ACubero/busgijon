@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS alerts (
     fired_at          TEXT
 );
 
+CREATE TABLE IF NOT EXISTS route_shapes (
+    line_id    INTEGER PRIMARY KEY,
+    data       TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_alerts_active
     ON alerts(status, stop_id) WHERE status = 'active';
 """

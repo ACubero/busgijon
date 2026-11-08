@@ -13,7 +13,8 @@ from fastapi import FastAPI
 from app.config import settings
 from app.db import init_db
 from app.emtusa_client import emtusa_client
-from app.routers import alerts, proxy, push
+from app import route_shapes
+from app.routers import alerts, proxy, push, routes
 
 
 @contextlib.asynccontextmanager
@@ -26,11 +27,16 @@ async def lifespan(app: FastAPI):
     from app.poller import start_poller, stop_poller
 
     poller_task = await start_poller(app)
+    routes_task = asyncio.create_task(route_shapes.prefetch_loop()) if settings.routes_prefetch else None
 
     yield
 
     # ── Shutdown ──
     await stop_poller(poller_task)
+    if routes_task:
+        routes_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await routes_task
     await emtusa_client.close()
 
 
@@ -45,6 +51,7 @@ app = FastAPI(
 app.include_router(proxy.router)
 app.include_router(alerts.router)
 app.include_router(push.router)
+app.include_router(routes.router)
 
 
 @app.get("/health")

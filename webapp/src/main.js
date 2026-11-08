@@ -28,6 +28,7 @@ import {
   invalidateMapSize,
   flyTo,
 } from "./map.js";
+import { initRouteSelector, togglePanel as toggleRoutesPanel } from "./routes.js";
 import {
   renderArrivals,
   groupArrivals,
@@ -139,6 +140,7 @@ async function init() {
       `Init: Loaded ${state.allStops.length} stops and ${state.allLines.length} lines.`,
     );
     processLines(linesFn);
+    initRouteSelector(linesFn);
 
     state.nearbyStops = getNearbyStops(
       state.allStops,
@@ -666,6 +668,7 @@ function switchToView(view) {
   // mantenerlo en `state` es coherente con el patrón "estado único en main.js".
   state.view = view;
   if (view === "map") invalidateMapSize();
+  else toggleRoutesPanel(false);
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === view);
   });

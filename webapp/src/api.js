@@ -262,6 +262,67 @@ export async function getRouteStops(lineId, routeId) {
   return data["0"] || data;
 }
 
+/**
+ * Recorridos de una línea ajustados a calles (backend + OSRM).
+ * Fallback sin backend: rectas entre paradas. Caché en memoria + localStorage.
+ * @returns {Promise<Array<{idtrayecto, direccion, destino, coords:number[][]}>>}
+ */
+const ROUTES_LS_KEY = "bus_route_shapes_v1";
+const ROUTES_TTL_MS = 7 * 24 * 3600 * 1000;
+const routeShapesMem = new Map();
+
+function readRoutesLS() {
+  try {
+    return JSON.parse(localStorage.getItem(ROUTES_LS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeRoutesLS(lineId, routes) {
+  const all = readRoutesLS();
+  all[lineId] = { t: Date.now(), r: routes };
+  try {
+    localStorage.setItem(ROUTES_LS_KEY, JSON.stringify(all));
+  } catch {
+    localStorage.removeItem(ROUTES_LS_KEY);
+  }
+}
+
+async function fetchLineRoutes(lineId) {
+  try {
+    const res = await fetch(`${BACKEND_BASE}routes/${lineId}`, { signal: AbortSignal.timeout(90000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const routes = ((await res.json()).trayectos || []).map(({ idtrayecto, direccion, destino, coords }) => ({
+      idtrayecto, direccion, destino, coords,
+    }));
+    if (routes.length) writeRoutesLS(lineId, routes);
+    return routes;
+  } catch (e) {
+    console.warn(`[API] Recorridos L${lineId} sin backend, usando rectas`, e);
+    return (await discoverAllRoutes(lineId)).map((r) => ({
+      idtrayecto: r.idtrayecto,
+      direccion: r.direccion,
+      destino: r.destino,
+      coords: r.paradas
+        .map((p) => [parseFloat(p.latitud), parseFloat(p.longitud)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng)),
+    }));
+  }
+}
+
+export function getLineRoutes(lineId) {
+  const id = String(lineId);
+  if (routeShapesMem.has(id)) return routeShapesMem.get(id);
+  const hit = readRoutesLS()[id];
+  const promise = hit && Date.now() - hit.t < ROUTES_TTL_MS
+    ? Promise.resolve(hit.r)
+    : fetchLineRoutes(id);
+  routeShapesMem.set(id, promise);
+  promise.catch(() => routeShapesMem.delete(id));
+  return promise;
+}
+
 /** Obtener coordenadas de buses en tiempo real */
 export async function getBusRealTime() {
   return apiGet("autobuses/coordenadas");

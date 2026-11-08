@@ -2709,3 +2709,93 @@ html.light-theme .toast {
 html:not(.light-theme) .osm-tiles {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.6);
 }
+
+/* Recorridos de líneas */
+.routes-ctrl-btn {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  color: var(--text-primary);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  padding: 0 14px;
+  font: 700 18px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.routes-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-height);
+  z-index: 1500;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  border-top: 2px solid var(--accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-lg);
+  padding: 12px 14px 16px;
+}
+.routes-panel.hidden {
+  display: none;
+}
+.routes-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.routes-panel-title {
+  flex: 1;
+  font-size: 21px;
+  font-weight: 800;
+}
+.routes-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--text-muted);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.routes-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+}
+.route-chip {
+  min-height: 52px;
+  border-radius: var(--radius-sm);
+  border: 3px solid var(--chip-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 21px;
+  font-weight: 800;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.route-chip.active {
+  background: var(--chip-color);
+  color: var(--chip-text);
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+.route-chip.loading {
+  animation: route-chip-pulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes route-chip-pulse {
+  to { opacity: 0.4; }
+}
+.route-tooltip {
+  font-size: 18px;
+  font-weight: 700;
+}

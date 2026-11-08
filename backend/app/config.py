@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Background poller interval (seconds)
     poll_interval_seconds: int = 30
 
+    # Recorridos de líneas (OSRM)
+    osrm_url: str = "https://router.project-osrm.org"
+    routes_prefetch: bool = True
+
     # Server
     host: str = "127.0.0.1"
     port: int = 8000

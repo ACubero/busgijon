@@ -11,6 +11,8 @@ let userMarker = null;
 let stopMarkers = [];
 let stopMarkersLayer = null;
 let busMarkersLayer = null;
+let routesLayer = null;
+let routesRenderer = null;
 
 // Elimina caracteres fuera del rango latino (corrupción en BD de EMTUSA)
 // Mantiene: ASCII imprimible + Latin-1 Supplement + Latin Extended (acentos, ñ, etc.)
@@ -101,6 +103,8 @@ export function initMap(lat, lng, theme = "dark") {
     )
     .addTo(map);
 
+  routesRenderer = L.canvas({ padding: 0.5 });
+  routesLayer = L.layerGroup().addTo(map);
   stopMarkersLayer = L.layerGroup().addTo(map);
   busMarkersLayer = L.layerGroup().addTo(map);
 
@@ -222,6 +226,59 @@ export function setBusMarkers(buses) {
 
     busMarkersLayer.addLayer(marker);
   });
+}
+
+// ============================================
+// Route lines (recorridos)
+// ============================================
+
+/**
+ * Dibuja los recorridos de las líneas seleccionadas.
+ * @param {Array<{code:string,color:string,routes:Array}>} lines
+ */
+export function setRouteLines(lines) {
+  if (!routesLayer) return;
+  routesLayer.clearLayers();
+  const base = { renderer: routesRenderer, lineJoin: "round", lineCap: "round" };
+  const all = lines.flatMap(({ code, color, routes }) =>
+    routes.filter((r) => r.coords?.length > 1).map((r) => ({ code, color, r })),
+  );
+  all.forEach(({ r }) => {
+    routesLayer.addLayer(L.polyline(r.coords, { ...base, color: "#fff", weight: 10, opacity: 0.85, interactive: false }));
+  });
+  all.forEach(({ code, color, r }) => {
+    L.polyline(r.coords, {
+      ...base,
+      color,
+      weight: 6,
+      opacity: 1,
+      dashArray: Number(r.direccion) === 2 ? "12 10" : null,
+    })
+      .bindTooltip(`L${code} → ${fixText(r.destino) || ""}`, { sticky: true, className: "route-tooltip" })
+      .addTo(routesLayer);
+  });
+}
+
+/** Botón flotante «Líneas» en el mapa. Devuelve el elemento para actualizar el contador. */
+export function addRoutesControl(onClick) {
+  if (!map) return null;
+  let btn = null;
+  const Ctrl = L.Control.extend({
+    onAdd() {
+      btn = L.DomUtil.create("button", "routes-ctrl-btn");
+      btn.type = "button";
+      btn.setAttribute("aria-label", "Elegir recorridos de líneas");
+      btn.textContent = "Líneas";
+      L.DomEvent.disableClickPropagation(btn);
+      L.DomEvent.on(btn, "click", (e) => {
+        L.DomEvent.stop(e);
+        onClick();
+      });
+      return btn;
+    },
+  });
+  new Ctrl({ position: "topright" }).addTo(map);
+  return btn;
 }
 
 // ============================================
