@@ -13,6 +13,8 @@ let stopMarkersLayer = null;
 let busMarkersLayer = null;
 let routesLayer = null;
 let routesRenderer = null;
+const ROUTE_STOP_COLOR = "#ffd400";
+const ROUTE_STOP_BORDER = "#111";
 
 // Elimina caracteres fuera del rango latino (corrupción en BD de EMTUSA)
 // Mantiene: ASCII imprimible + Latin-1 Supplement + Latin Extended (acentos, ñ, etc.)
@@ -269,13 +271,13 @@ export function setRouteLines(lines) {
       stops.set(key, entry);
     });
   });
-  stops.forEach(({ st, color, lines: codes, terminal }) => {
+  stops.forEach(({ st, lines: codes, terminal }) => {
     L.circleMarker([st.lat, st.lng], {
       renderer: routesRenderer,
-      radius: terminal ? 9 : 6,
-      color: terminal ? "#fff" : color,
-      weight: terminal ? 3 : 3,
-      fillColor: terminal ? color : "#fff",
+      radius: terminal ? 10 : 7,
+      color: terminal ? ROUTE_STOP_COLOR : ROUTE_STOP_BORDER,
+      weight: terminal ? 4 : 2.5,
+      fillColor: terminal ? ROUTE_STOP_BORDER : ROUTE_STOP_COLOR,
       fillOpacity: 1,
     })
       .bindTooltip(
