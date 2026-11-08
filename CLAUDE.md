@@ -16,7 +16,7 @@ Toda comunicación y texto generado debe estar en **español de España**, inclu
 | `main.js` | Punto de entrada, estado global (`state`), orquestación |
 | `api.js` | Cliente EMTUSA — OAuth2, refresco de token, endpoints |
 | `map.js` | Mapa Leaflet — marcadores, temas, navegación |
-| `routes.js` | Selector de recorridos en el mapa (`bus_map_lines`) |
+| `routes.js` | Selector de recorridos: línea, sentido, tipo de día, variantes (`bus_map_lines_v2`) |
 | `geo.js` | Geolocalización y filtrado de paradas por distancia |
 | `ui.js` | Renderizado DOM — lista de llegadas, modo transbordo |
 | `style.css` | Estilos (tema oscuro/claro vía CSS variables) |
@@ -25,7 +25,7 @@ Toda comunicación y texto generado debe estar en **español de España**, inclu
 - Estado único en `main.js`, sin librería externa. Preferencias en `localStorage`.
 - API: producción → directo; dev → `/api/` proxiado por Vite (`vite.config.js`).
 - Endpoints clave: `paradas/todasParadas`, `paradas/parada/:id`, `lineas/lineas`, `autobuses/coordenadas`.
-- Recorridos: EMTUSA no da geometría → backend `GET /api/routes/{idlinea}` ajusta paradas a calles con OSRM (`app/route_shapes.py`), caché SQLite `route_shapes` 7 d, precarga diaria. Sin backend → rectas entre paradas. Polilíneas en canvas del `overlayPane` (un pane propio no rota con leaflet-rotate).
+- Recorridos: EMTUSA no da geometría → backend `GET /api/routes/{idlinea}` ajusta paradas a calles con OSRM (`app/route_shapes.py`), caché SQLite `route_shapes` 7 d, precarga diaria. La API solo da trayectos del día → backend registra cada 3 h en `route_days` qué trayectos circulan por tipo de día (L/S/D, festivos nacionales+Asturias) y responde `dias`/`hoy`. Sin backend → rectas entre paradas. Polilíneas en canvas del `overlayPane` (un pane propio no rota con leaflet-rotate).
 - Flujo: `init()` autentica y carga paradas → `loadAllArrivals()` en lotes de 3 (máx. 25) → refresco cada 30 s.
 
 ## Reglas del agente (`.agent/rules/`)

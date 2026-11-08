@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import time
+from datetime import date, timedelta
 
 import aiosqlite
 import httpx
@@ -24,6 +25,37 @@ _osrm_lock = asyncio.Lock()
 _osrm_last = 0.0
 
 Point = tuple[float, float]
+DAY_TYPES = ("L", "S", "D")
+FIXED_HOLIDAYS = {(1, 1), (1, 6), (5, 1), (8, 15), (9, 8), (10, 12), (11, 1), (12, 6), (12, 8), (12, 25)}
+_recorded: dict[int, str] = {}
+
+
+def _easter(year: int) -> date:
+    a, b, c = year % 19, year // 100, year % 100
+    d, e = b // 4, b % 4
+    g = (8 * b + 13) // 25
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 19 * l) // 433
+    month = (h + l - 7 * m + 90) // 25
+    return date(year, month, (h + l - 7 * m + 33 * month + 19) % 32)
+
+
+def day_type(day: date) -> str:
+    """L = laborable, S = sábado, D = domingo o festivo (nacional/Asturias)."""
+    easter = _easter(day.year)
+    if day.weekday() == 6 or (day.month, day.day) in FIXED_HOLIDAYS or day in (
+        easter - timedelta(days=3), easter - timedelta(days=2)
+    ):
+        return "D"
+    return "S" if day.weekday() == 5 else "L"
+
+
+def _line_detail(data) -> dict:
+    if isinstance(data, list):
+        return data[0] if data and isinstance(data[0], dict) else {}
+    return data.get("0", data) if isinstance(data, dict) else {}
 
 
 def chunk_waypoints(pts: list[Point], size: int = CHUNK_SIZE) -> list[list[Point]]:
@@ -95,8 +127,7 @@ async def _fetch_route(line_id: int, route_id: int) -> dict | None:
 async def discover_routes(line_id: int) -> list[dict]:
     known: list[int] = []
     try:
-        data = await emtusa_client.get(f"lineas/lineas/{line_id}")
-        detail = data.get("0", data) if isinstance(data, dict) else {}
+        detail = _line_detail(await emtusa_client.get(f"lineas/lineas/{line_id}"))
         known = [int(t["idtrayecto"]) for t in detail.get("trayectos") or [] if t.get("idtrayecto")]
     except Exception:
         pass
@@ -165,6 +196,55 @@ async def get_line_routes(line_id: int, force: bool = False) -> list[dict]:
         return out
 
 
+async def record_today(line_id: int, today: date | None = None) -> None:
+    """Registra qué trayectos circulan hoy (la API solo da los del día) por tipo de día."""
+    today = today or date.today()
+    iso = today.isoformat()
+    if _recorded.get(line_id) == iso:
+        return
+    detail = _line_detail(await emtusa_client.get(f"lineas/lineas/{line_id}"))
+    ids = {int(t["idtrayecto"]) for t in detail.get("trayectos") or [] if t.get("idtrayecto")}
+    async with aiosqlite.connect(settings.db_path) as db:
+        await db.executemany(
+            "INSERT OR REPLACE INTO route_days (line_id, route_id, day_type, last_seen) VALUES (?, ?, ?, ?)",
+            [(line_id, rid, day_type(today), iso) for rid in ids],
+        )
+        await db.commit()
+    _recorded[line_id] = iso
+
+
+async def attach_days(line_id: int, routes: list[dict], today: date | None = None) -> list[dict]:
+    """Copia de `routes` con `dias` (tipos de día observados) y `hoy`."""
+    iso = (today or date.today()).isoformat()
+    async with aiosqlite.connect(settings.db_path) as db:
+        cur = await db.execute(
+            "SELECT route_id, day_type, last_seen FROM route_days WHERE line_id = ?", (line_id,)
+        )
+        rows = await cur.fetchall()
+    days: dict[int, set[str]] = {}
+    seen_today: set[int] = set()
+    for rid, dt, last in rows:
+        days.setdefault(rid, set()).add(dt)
+        if last == iso:
+            seen_today.add(rid)
+    return [
+        {
+            **r,
+            "dias": [d for d in DAY_TYPES if d in days.get(int(r["idtrayecto"]), set())],
+            "hoy": int(r["idtrayecto"]) in seen_today,
+        }
+        for r in routes
+    ]
+
+
+async def get_line_routes_with_days(line_id: int) -> list[dict]:
+    try:
+        await record_today(line_id)
+    except Exception as e:
+        print(f"[routes] días L{line_id}: {e}")
+    return await attach_days(line_id, await get_line_routes(line_id))
+
+
 async def get_all_cached() -> dict[str, list[dict]]:
     async with aiosqlite.connect(settings.db_path) as db:
         cur = await db.execute("SELECT line_id, data FROM route_shapes")
@@ -180,13 +260,15 @@ async def _line_ids() -> list[int]:
 
 
 async def prefetch_loop() -> None:
+    """Cada 3 h: registra trayectos del día y recalcula recorridos caducados."""
     while True:
         try:
             for line_id in await _line_ids():
                 try:
+                    await record_today(line_id)
                     await get_line_routes(line_id)
                 except Exception as e:
                     print(f"[routes] línea {line_id}: {e}")
         except Exception as e:
             print(f"[routes] prefetch: {e}")
-        await asyncio.sleep(24 * 3600)
+        await asyncio.sleep(3 * 3600)

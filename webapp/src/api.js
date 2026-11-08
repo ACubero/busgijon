@@ -267,9 +267,11 @@ export async function getRouteStops(lineId, routeId) {
  * Fallback sin backend: rectas entre paradas. Caché en memoria + localStorage.
  * @returns {Promise<Array<{idtrayecto, direccion, destino, coords:number[][]}>>}
  */
-const ROUTES_LS_KEY = "bus_route_shapes_v1";
-const ROUTES_TTL_MS = 7 * 24 * 3600 * 1000;
+const ROUTES_LS_KEY = "bus_route_shapes_v2";
+const ROUTES_TTL_MS = 6 * 3600 * 1000;
 const routeShapesMem = new Map();
+
+const todayIso = () => new Date().toLocaleDateString("sv-SE");
 
 function readRoutesLS() {
   try {
@@ -281,7 +283,7 @@ function readRoutesLS() {
 
 function writeRoutesLS(lineId, routes) {
   const all = readRoutesLS();
-  all[lineId] = { t: Date.now(), r: routes };
+  all[lineId] = { t: Date.now(), d: todayIso(), r: routes };
   try {
     localStorage.setItem(ROUTES_LS_KEY, JSON.stringify(all));
   } catch {
@@ -293,9 +295,11 @@ async function fetchLineRoutes(lineId) {
   try {
     const res = await fetch(`${BACKEND_BASE}routes/${lineId}`, { signal: AbortSignal.timeout(90000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const routes = ((await res.json()).trayectos || []).map(({ idtrayecto, direccion, destino, coords }) => ({
-      idtrayecto, direccion, destino, coords,
-    }));
+    const routes = ((await res.json()).trayectos || []).map(
+      ({ idtrayecto, direccion, destino, descripcion, dias, hoy, coords }) => ({
+        idtrayecto, direccion, destino, descripcion, dias: dias || [], hoy: !!hoy, coords,
+      }),
+    );
     if (routes.length) writeRoutesLS(lineId, routes);
     return routes;
   } catch (e) {
@@ -304,6 +308,9 @@ async function fetchLineRoutes(lineId) {
       idtrayecto: r.idtrayecto,
       direccion: r.direccion,
       destino: r.destino,
+      descripcion: r.descripcion,
+      dias: [],
+      hoy: true,
       coords: r.paradas
         .map((p) => [parseFloat(p.latitud), parseFloat(p.longitud)])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng)),
@@ -315,7 +322,7 @@ export function getLineRoutes(lineId) {
   const id = String(lineId);
   if (routeShapesMem.has(id)) return routeShapesMem.get(id);
   const hit = readRoutesLS()[id];
-  const promise = hit && Date.now() - hit.t < ROUTES_TTL_MS
+  const promise = hit && hit.d === todayIso() && Date.now() - hit.t < ROUTES_TTL_MS
     ? Promise.resolve(hit.r)
     : fetchLineRoutes(id);
   routeShapesMem.set(id, promise);

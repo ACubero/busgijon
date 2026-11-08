@@ -81,8 +81,42 @@ async def test_get_line_routes_uses_cache(test_db):
 
 async def test_routes_endpoint(test_db):
     payload = [{"idtrayecto": 1, "coords": [[1.0, 2.0]]}]
-    with patch.object(route_shapes, "get_line_routes", AsyncMock(return_value=payload)):
+    with patch.object(route_shapes, "get_line_routes_with_days", AsyncMock(return_value=payload)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
             resp = await c.get("/api/routes/1")
     assert resp.status_code == 200
     assert resp.json() == {"idlinea": 1, "trayectos": payload}
+
+
+@pytest.mark.parametrize("iso,expected", [
+    ("2026-11-09", "L"),  # lunes
+    ("2026-11-07", "S"),  # sábado
+    ("2026-11-08", "D"),  # domingo
+    ("2026-12-25", "D"),  # Navidad (viernes)
+    ("2026-09-08", "D"),  # Día de Asturias (martes)
+    ("2027-03-25", "D"),  # Jueves Santo
+    ("2027-03-26", "D"),  # Viernes Santo
+    ("2027-03-24", "L"),
+])
+def test_day_type(iso, expected):
+    from datetime import date
+    assert route_shapes.day_type(date.fromisoformat(iso)) == expected
+
+
+async def test_record_today_and_attach_days(test_db):
+    from datetime import date
+    emtusa = AsyncMock()
+    emtusa.get = AsyncMock(return_value=[{"trayectos": [{"idtrayecto": 5}, {"idtrayecto": 6}]}])
+    with patch.object(route_shapes, "emtusa_client", emtusa):
+        await route_shapes.record_today(6, date(2026, 11, 8))
+        await route_shapes.record_today(6, date(2026, 11, 9))
+    emtusa.get.return_value = [{"trayectos": [{"idtrayecto": 1}]}]
+    with patch.object(route_shapes, "emtusa_client", emtusa):
+        await route_shapes.record_today(6, date(2026, 11, 10))
+    routes = [{"idtrayecto": 1}, {"idtrayecto": 5}, {"idtrayecto": 9}]
+    out = await route_shapes.attach_days(6, routes, date(2026, 11, 10))
+    by_id = {r["idtrayecto"]: r for r in out}
+    assert by_id[1]["dias"] == ["L"] and by_id[1]["hoy"] is True
+    assert by_id[5]["dias"] == ["L", "D"] and by_id[5]["hoy"] is False
+    assert by_id[9]["dias"] == [] and by_id[9]["hoy"] is False
+    assert "dias" not in routes[0]

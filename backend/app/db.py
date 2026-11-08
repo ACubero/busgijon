@@ -38,6 +38,14 @@ CREATE TABLE IF NOT EXISTS route_shapes (
     updated_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS route_days (
+    line_id   INTEGER NOT NULL,
+    route_id  INTEGER NOT NULL,
+    day_type  TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    PRIMARY KEY (line_id, route_id, day_type)
+);
+
 CREATE INDEX IF NOT EXISTS idx_alerts_active
     ON alerts(status, stop_id) WHERE status = 'active';
 """
