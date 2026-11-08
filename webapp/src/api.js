@@ -267,7 +267,7 @@ export async function getRouteStops(lineId, routeId) {
  * Fallback sin backend: rectas entre paradas. Caché en memoria + localStorage.
  * @returns {Promise<Array<{idtrayecto, direccion, destino, coords:number[][]}>>}
  */
-const ROUTES_LS_KEY = "bus_route_shapes_v2";
+const ROUTES_LS_KEY = "bus_route_shapes_v3";
 const ROUTES_TTL_MS = 6 * 3600 * 1000;
 const routeShapesMem = new Map();
 
@@ -296,8 +296,9 @@ async function fetchLineRoutes(lineId) {
     const res = await fetch(`${BACKEND_BASE}routes/${lineId}`, { signal: AbortSignal.timeout(90000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const routes = ((await res.json()).trayectos || []).map(
-      ({ idtrayecto, direccion, destino, descripcion, dias, hoy, coords }) => ({
+      ({ idtrayecto, direccion, destino, descripcion, dias, hoy, coords, stops }) => ({
         idtrayecto, direccion, destino, descripcion, dias: dias || [], hoy: !!hoy, coords,
+        stops: (stops || []).map(({ id, nombre, lat, lng }) => ({ id, nombre, lat, lng })),
       }),
     );
     if (routes.length) writeRoutesLS(lineId, routes);
@@ -311,6 +312,9 @@ async function fetchLineRoutes(lineId) {
       descripcion: r.descripcion,
       dias: [],
       hoy: true,
+      stops: r.paradas
+        .map((p) => ({ id: p.idParada, nombre: p.descripcion, lat: parseFloat(p.latitud), lng: parseFloat(p.longitud) }))
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)),
       coords: r.paradas
         .map((p) => [parseFloat(p.latitud), parseFloat(p.longitud)])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng)),

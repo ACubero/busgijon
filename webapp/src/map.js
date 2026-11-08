@@ -257,6 +257,33 @@ export function setRouteLines(lines) {
       .bindTooltip(`L${code} → ${fixText(r.destino) || ""}`, { sticky: true, className: "route-tooltip" })
       .addTo(routesLayer);
   });
+  const stops = new Map();
+  all.forEach(({ code, color, r }) => {
+    const list = r.stops || [];
+    list.forEach((st, i) => {
+      if (!Number.isFinite(st.lat) || !Number.isFinite(st.lng)) return;
+      const key = `${st.id ?? `${st.lat},${st.lng}`}`;
+      const entry = stops.get(key) || { st, color, lines: new Set(), terminal: false };
+      entry.lines.add(code);
+      entry.terminal ||= i === 0 || i === list.length - 1;
+      stops.set(key, entry);
+    });
+  });
+  stops.forEach(({ st, color, lines: codes, terminal }) => {
+    L.circleMarker([st.lat, st.lng], {
+      renderer: routesRenderer,
+      radius: terminal ? 9 : 6,
+      color: terminal ? "#fff" : color,
+      weight: terminal ? 3 : 3,
+      fillColor: terminal ? color : "#fff",
+      fillOpacity: 1,
+    })
+      .bindTooltip(
+        `<b>${fixText(st.nombre) || "Parada"}</b>${st.id != null ? ` · #${st.id}` : ""}<br>${[...codes].map((c) => `L${c}`).join(" · ")}${terminal ? " · cabecera" : ""}`,
+        { className: "route-tooltip", direction: "top", offset: [0, -6] },
+      )
+      .addTo(routesLayer);
+  });
 }
 
 /** Botón flotante «Líneas» en el mapa. Devuelve el elemento para actualizar el contador. */
